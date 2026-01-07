@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Professional v1.8 - Children List Support</title>
+    <title>FTA Professional v1.9 - Layout Fixes</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -26,15 +26,21 @@
 
     <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
         <div class="flex items-center space-x-4">
-            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.8</span>
+            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.9</span>
             <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
         </div>
         
         <div class="flex items-center space-x-4">
-            <!-- New Table Selection Dropdown -->
+            <!-- Table Selection Dropdown -->
             <label for="table-select" class="text-xs font-medium text-gray-300">Data Table:</label>
             <select id="table-select" class="bg-gray-800 text-white text-sm py-1.5 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-48">
                 <option value="">-- No Tables Loaded --</option>
+            </select>
+
+            <!-- FTA ID Selection Dropdown (NEW) -->
+            <label for="fta-id-select" class="text-xs font-medium text-gray-300">FTA ID:</label>
+            <select id="fta-id-select" class="bg-gray-800 text-white text-sm py-1.5 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-32">
+                <option value="">-- Loading --</option>
             </select>
 
             <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded transition border border-gray-500">
@@ -47,72 +53,154 @@
     </nav>
 
     <main id="canvas-container" class="relative">
-        <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 animate-pulse">
+        <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
             <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 002-2h2a2 2 0 002 2"></path></svg>
-            <p>Ready to visualize</p>
+            <p>Load data or select an FTA ID to begin visualization.</p>
         </div>
         <svg id="main-svg" class="w-full h-full"></svg>
     </main>
 
     <script>
-        // Sample data for fallback and structure reference (using Children list format)
-        // Updated to include the new data and structure provided by the user (including 'Prob.' column)
+        // Sample data for fallback and structure reference
         const sampleRows = [
             ["FTA ID", "Event ID", "Event Description", "ASIL", "AND Children", "OR Children", "Prob.", "Cutset ID", "Cutset Desc"],
             // FFTA1
-            ["FFTA1", "SG1", "Violation of SG1: Prevent unintended acceleration above driver request.", "ASIL D", "E1,E2", "", "", "", ""],
-            ["FFTA1", "E1", "e-stop fails", "ASIL C (D)", "", "", "", "FSR1.1", "The e-stop (safety mechanism independent from VCU) shall return the vehicle to the safe state of zero torque"],
-            ["FFTA1", "E2", "MCU receives torque request unintended by driver", "ASIL A(D)", "", "E3,E4,E5", "", "FSR1.2", "MCU shall not provide torque if not commanded by driver"],
-            ["FFTA1", "E3", "implausible or invalid accelerator pedal signal", "ASIL A(D)", "", "", "", "FSR1.3", "The VCU shall detect implausible or invalid accelerator pedal position input within the Fault Tolerant Time Interval (FTTI)."],
-            ["FFTA1", "E4", "brake interlock fails", "ASIL A(D)", "", "", "", "FSR1.4", "VCU commands 0 torque when brake pedal applied"],
-            ["FFTA1", "E5", "loss or corruption of communication results in unintended torque command", "ASIL A(D)", "", "", "", "FSR1.5", "MCU loss of CAN signal triggers timeout to 0 torque safe state within FTTI"],
-            // FFTA2 (These will be ignored by the current hardcoded targetFtaId = "FFTA1")
-            ["FFTA2", "SG2", "Violation of SG2: Prevent torque overshoot beyond safe limits", "ASIL B", "E1,E2", "", "", "", ""],
-            ["FFTA2", "E1", "MCU exceeds internal parameter limits", "ASIL A (B)", "", "", "", "FSR2.1", "MCU shall operate within safe torque limits imposed by MCU parameters"],
-            ["FFTA2", "E2", "VCU fails to detect overshoot and disable MCU", "ASIL A (B)", "", "", "", "FSR2.2", "The VCU will supervise against excessive torque from the MCU"]
+            ["FFTA1", "SG1", "Violation of SG1: Prevent unintended acceleration above driver request.", "ASIL D", "E1,E2", "", "1e-08", "", ""],
+            ["FFTA1", "E1", "e-stop fails", "ASIL C (D)", "", "", "1e-07", "FSR1.1", "The e-stop (safety mechanism independent from VCU) shall return the vehicle to the safe state of zero torque"],
+            ["FFTA1", "E2", "MCU receives torque request unintended by driver", "ASIL A(D)", "", "E3,E4,E5", "1e-05", "FSR1.2", "MCU shall not provide torque if not commanded by driver"],
+            ["FFTA1", "E3", "implausible or invalid accelerator pedal signal", "ASIL A(D)", "", "", "2e-06", "FSR1.3", "The VCU shall detect implausible or invalid accelerator pedal position input within the Fault Tolerant Time Interval (FTTI)."],
+            ["FFTA1", "E4", "brake interlock fails", "ASIL A(D)", "", "", "5e-06", "FSR1.4", "VCU commands 0 torque when brake pedal applied"],
+            ["FFTA1", "E5", "loss or corruption of communication results in unintended torque command", "ASIL A(D)", "", "", "3e-06", "FSR1.5", "MCU loss of CAN signal triggers timeout to 0 torque safe state within FTTI"],
+            // FFTA2
+            ["FFTA2", "SG2", "Violation of SG2: Prevent torque overshoot beyond safe limits", "ASIL B", "E1,E2", "", "1e-06", "", ""],
+            ["FFTA2", "E1", "MCU exceeds internal parameter limits", "ASIL A (B)", "B1,B2", "", "5e-07", "FSR2.1", "MCU shall operate within safe torque limits imposed by MCU parameters"],
+            ["FFTA2", "E2", "VCU fails to detect overshoot and disable MCU", "ASIL A (B)", "", "B3,B4", "5e-07", "FSR2.2", "The VCU will supervise against excessive torque from the MCU"],
+            ["FFTA2", "B1", "Microcontroller failure - channel A", "QM", "", "", "1e-08", "", ""],
+            ["FFTA2", "B2", "Microcontroller failure - channel B", "QM", "", "", "1e-08", "", ""],
+            ["FFTA2", "B3", "Sensor failure - Input 1", "QM", "", "", "5e-08", "", ""],
+            ["FFTA2", "B4", "Sensor failure - Input 2", "QM", "", "", "5e-08", "", ""]
         ];
 
         let officeLoaded = false;
-        let tablesLoaded = false; // Flag to track if tables have been discovered
-        // Target FTA ID is hardcoded here, which filters the Excel data or sample data.
-        const targetFtaId = "FFTA1"; 
-
+        let tablesLoaded = false;
+        let currentFtaId = "FFTA1"; // Default start
+        let fullDataStore = []; // Stores the complete, unfiltered data (sample or excel)
+        
         window.onload = () => {
             document.getElementById('btn-sample').onclick = renderSampleData;
             document.getElementById('btn-sync').onclick = handleExcelSync;
+            document.getElementById('fta-id-select').onchange = () => {
+                // Trigger re-render using the currently stored full data when FTA ID changes
+                filterAndRender(fullDataStore); 
+            };
+            
+            // Initialize with sample data on load
+            renderSampleData();
         };
+        
+        /**
+         * Extracts unique FTA IDs from the full dataset and populates the dropdown.
+         */
+        function extractAndPopulateFtaIds(rows) {
+            if (!rows || rows.length < 2) return;
+            const headerRow = rows[0];
+            const dataBodyValues = rows.slice(1);
+            
+            const header = headerRow.map(h => String(h).trim().toLowerCase()); 
+            const ftaIdColumnIndex = header.findIndex(h => h.includes("fta id"));
+
+            if (ftaIdColumnIndex === -1) {
+                console.warn("FTA ID column not found for extraction.");
+                return;
+            }
+
+            const uniqueIds = new Set();
+            dataBodyValues.forEach(row => {
+                const ftaId = String(row[ftaIdColumnIndex] || "").trim().toUpperCase();
+                if (ftaId) uniqueIds.add(ftaId);
+            });
+
+            const dropdown = document.getElementById('fta-id-select');
+            dropdown.innerHTML = ''; 
+            
+            const sortedIds = Array.from(uniqueIds).sort();
+            sortedIds.forEach(id => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = id;
+                dropdown.appendChild(option);
+            });
+            
+            // Set the dropdown to the previously selected or a default value
+            if (sortedIds.includes(currentFtaId)) {
+                dropdown.value = currentFtaId;
+            } else if (sortedIds.length > 0) {
+                currentFtaId = sortedIds[0];
+                dropdown.value = currentFtaId;
+            } else {
+                dropdown.innerHTML = '<option value="">-- No IDs Found --</option>';
+                currentFtaId = "";
+            }
+        }
+        
+        /**
+         * Filters the stored full data based on the currentFtaId selection and renders the diagram.
+         * @param {Array<Array<string>>} fullRows - The complete, unfiltered dataset.
+         */
+        function filterAndRender(fullRows) {
+            if (!fullRows || fullRows.length < 2) {
+                document.getElementById('empty-state').classList.remove('hidden');
+                return;
+            }
+            
+            // Read the current selection
+            const ftaIdSelect = document.getElementById('fta-id-select');
+            currentFtaId = ftaIdSelect.value;
+
+            if (!currentFtaId) {
+                updateStatus(`Select an FTA ID`, "bg-red-500 text-white");
+                return;
+            }
+
+            const headerRow = fullRows[0];
+            const dataBodyValues = fullRows.slice(1);
+            const header = headerRow.map(h => String(h).trim().toLowerCase()); 
+            const ftaIdColumnIndex = header.findIndex(h => h.includes("fta id"));
+            
+            let filteredValues = [headerRow]; 
+            
+            if (ftaIdColumnIndex !== -1 && currentFtaId) {
+                // Filter data rows where FTA ID matches the target
+                const filteredData = dataBodyValues.filter(row => 
+                    row.length > ftaIdColumnIndex && String(row[ftaIdColumnIndex] || "").trim().toUpperCase() === currentFtaId.toUpperCase()
+                );
+                filteredValues = filteredValues.concat(filteredData);
+                
+                if (filteredValues.length <= 1) {
+                    updateStatus(`No Data for ID: ${currentFtaId}`, "bg-red-500 text-white");
+                    document.getElementById('empty-state').classList.remove('hidden');
+                    return;
+                }
+            } else {
+                // Should not happen if data loading was successful
+                filteredValues = fullRows;
+            }
+            
+            renderData(filteredValues);
+            document.getElementById('empty-state').classList.add('hidden');
+            
+            const source = fullDataStore === sampleRows ? 'Sample' : 'Excel';
+            updateStatus(`Rendered ${filteredValues.length - 1} Events (ID: ${currentFtaId}, Source: ${source})`, "bg-green-600 text-white");
+        }
+
 
         /**
          * Filters the sample data based on the global targetFtaId and renders the resulting FTA.
          */
         function renderSampleData() {
-            const headerRow = sampleRows[0];
-            const dataBodyValues = sampleRows.slice(1);
-            
-            // Find the index of the FTA ID column
-            const ftaIdColumnIndex = headerRow.map(h => String(h).trim().toLowerCase()).findIndex(h => h.includes("fta id"));
-            
-            let filteredValues = [headerRow]; 
-            
-            if (ftaIdColumnIndex !== -1 && targetFtaId) {
-                // Filter data rows where FTA ID matches the target
-                const filteredData = dataBodyValues.filter(row => 
-                    row.length > ftaIdColumnIndex && String(row[ftaIdColumnIndex] || "").trim().toUpperCase() === targetFtaId.toUpperCase()
-                );
-                filteredValues = filteredValues.concat(filteredData);
-                
-                if (filteredValues.length <= 1) {
-                    updateStatus(`Sample Data Missing for ID: ${targetFtaId}`, "bg-red-500 text-white");
-                    console.warn(`WARNING: No valid sample data rows found for FTA ID '${targetFtaId}'.`);
-                    return;
-                }
-            } else {
-                // Fallback to all sample data if filtering cannot be performed
-                filteredValues = sampleRows;
-            }
-            
-            renderData(filteredValues);
-            updateStatus(`Rendered Sample Events (ID: ${targetFtaId})`, "bg-green-600 text-white");
+            fullDataStore = sampleRows;
+            extractAndPopulateFtaIds(fullDataStore);
+            filterAndRender(fullDataStore);
         }
 
 
@@ -121,7 +209,6 @@
          */
         async function handleExcelSync() {
             if (!officeLoaded) {
-                console.log("DEBUG: Office.js not loaded. Attaching script.");
                 updateStatus("Loading Excel API...", "bg-gray-600 text-white");
                 const script = document.createElement('script');
                 script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
@@ -129,8 +216,6 @@
                     Office.onReady(async (info) => {
                         officeLoaded = true;
                         updateStatus("Excel API Ready", "bg-green-500 text-white");
-                        console.log("DEBUG: Office.js and Office.onReady completed.", info);
-                        // Once ready, load tables, then proceed to read
                         await populateTableDropdown();
                         performExcelRead();
                     });
@@ -141,7 +226,6 @@
                 }
                 document.head.appendChild(script);
             } else {
-                // If loaded, ensure tables are discovered before attempting read
                 if (!tablesLoaded) {
                     await populateTableDropdown();
                 }
@@ -154,10 +238,8 @@
          */
         async function populateTableDropdown() {
             updateStatus("Discovering Tables...", "bg-blue-500 text-white");
-            console.log("DEBUG: Starting Excel.run context to discover tables.");
-
             const dropdown = document.getElementById('table-select');
-            dropdown.innerHTML = '<option value="">-- Loading --</option>'; // Temporary loading state
+            dropdown.innerHTML = '<option value="">-- Loading --</option>'; 
 
             try {
                 await Excel.run(async (context) => {
@@ -165,7 +247,7 @@
                     const tables = worksheet.tables.load("name");
                     await context.sync();
 
-                    dropdown.innerHTML = ''; // Clear options
+                    dropdown.innerHTML = ''; 
                     
                     if (tables.items.length === 0) {
                         dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
@@ -174,7 +256,6 @@
                         return;
                     }
 
-                    // Add options to the dropdown
                     tables.items.forEach(table => {
                         const option = document.createElement('option');
                         option.value = table.name;
@@ -182,7 +263,6 @@
                         dropdown.appendChild(option);
                     });
 
-                    // Auto-select "FTA_Data" if it exists, otherwise select the first one.
                     const defaultTable = tables.items.find(t => t.name.toUpperCase() === "FTA_DATA") || tables.items[0];
                     if (defaultTable) {
                         dropdown.value = defaultTable.name;
@@ -190,7 +270,6 @@
                     }
 
                     tablesLoaded = true;
-                    console.log(`DEBUG: Successfully loaded ${tables.items.length} tables.`);
                 });
             } catch (error) {
                 console.error("Excel Table Discovery Error:", error);
@@ -205,40 +284,30 @@
          */
         async function performExcelRead() {
             const selectedTableName = document.getElementById('table-select').value;
-             // targetFtaId defined globally above
 
             if (!selectedTableName) {
                 updateStatus("Select a Table", "bg-red-500 text-white");
-                console.warn("WARNING: No table selected. Cannot proceed with data read.");
                 return;
             }
 
             updateStatus(`Reading Table: ${selectedTableName}...`, "bg-yellow-500 text-black");
-            console.log(`DEBUG: Starting Excel.run context to read table '${selectedTableName}'.`);
 
             try {
                 await Excel.run(async (context) => {
                     const worksheet = context.workbook.worksheets.getActiveWorksheet();
-                    
-                    // 1. Get the specific table by the selected name
                     let table = worksheet.tables.getItem(selectedTableName);
                     
-                    // 2. Get the range proxy objects
                     const headerRange = table.getHeaderRowRange();
                     const dataRange = table.getDataBodyRange();
 
-                    // 3. Load the 'values' property on the proxy objects
                     headerRange.load("values");
                     dataRange.load("values");
                     
-                    // 4. Synchronize the context to pull the data
                     await context.sync();
 
-                    // 5. Access the values from the loaded range objects
                     const headerValues = headerRange.values[0];
                     const dataBodyValues = dataRange.values;
                     
-                    // Combine header and data into the single array structure renderData expects
                     const allTableRows = [headerValues, ...dataBodyValues];
 
                     if (allTableRows.length < 2) {
@@ -247,43 +316,17 @@
                         return;
                     }
                     
-                    console.log(`DEBUG: Successfully read ${dataBodyValues.length} data rows from Table '${selectedTableName}'.`);
-                    
-                    // Find the index of the FTA ID column in the table headers for filtering
-                    const ftaIdColumnIndex = headerValues.map(h => String(h).trim().toLowerCase()).findIndex(h => h.includes("fta id"));
-                    
-                    if (ftaIdColumnIndex === -1) {
-                        console.warn("WARNING: 'FTA ID' column not found. Skipping filtering and rendering all table data.");
-                        renderData(allTableRows);
-                        updateStatus(`Rendered ${dataBodyValues.length} Events (No FTA Filter)`, "bg-green-600 text-white");
-                        return;
-                    }
+                    // 1. Store the full data and populate the FTA ID dropdown
+                    fullDataStore = allTableRows;
+                    extractAndPopulateFtaIds(fullDataStore); 
 
-                    // Filter data client-side by FTA ID
-                    let filteredValues = [headerValues]; 
-                    
-                    const filteredData = dataBodyValues.filter(row => 
-                        row.length > ftaIdColumnIndex && String(row[ftaIdColumnIndex] || "").trim().toUpperCase() === targetFtaId.toUpperCase()
-                    );
-                    
-                    filteredValues = filteredValues.concat(filteredData);
-                    
-                    console.log(`DEBUG: Filtered data by FTA ID '${targetFtaId}'. Total rows to render: ${filteredValues.length - 1}`);
-                    console.log("DEBUG: First 3 rows of filtered data (check for column order/content):", filteredValues.slice(0, 3)); 
-
-                    if (filteredValues.length <= 1) {
-                        updateStatus(`No Data for ID: ${targetFtaId}`, "bg-red-500 text-white");
-                        console.warn(`WARNING: No valid data rows found for FTA ID '${targetFtaId}'.`);
-                    } else {
-                        renderData(filteredValues);
-                        updateStatus(`Rendered ${filteredValues.length - 1} Events (Table: ${selectedTableName})`, "bg-green-600 text-white");
-                    }
+                    // 2. Filter and Render based on the new selection
+                    filterAndRender(fullDataStore);
                 });
             } catch (error) {
                 console.error("Excel Runtime Error:", error);
                 if (error instanceof OfficeExtension.Error && error.code === 'ItemNotFound') {
                      updateStatus("Table Not Found", "bg-red-600 text-white");
-                     console.error(`ERROR: The selected table '${selectedTableName}' was not found.`);
                 } else {
                     updateStatus("Excel Error", "bg-red-600 text-white");
                 }
@@ -297,13 +340,13 @@
         }
 
         function getAsilColor(asil) {
-            if (!asil) return "#718096";
+            if (!asil) return "#C0E6F5";
             const a = asil.toUpperCase();
-            if (a.includes("ASIL D")) return "#e53e3e";
-            if (a.includes("ASIL C")) return "#ed8936";
-            if (a.includes("ASIL B")) return "#ecc94b";
-            if (a.includes("ASIL A")) return "#4299e1";
-            return "#a0aec0";
+            if (a.includes("ASIL D")) return "#FF3399";
+            if (a.includes("ASIL C")) return "#D86DCD";
+            if (a.includes("ASIL B")) return "#9966FF";
+            if (a.includes("ASIL A")) return "#4D93D9";
+            return "#C0E6F5";
         }
 
 
@@ -328,19 +371,12 @@
         /**
          * Transforms the children-list structure (AND Children, OR Children columns)
          * into a flat hierarchy of Parent/Child nodes required by d3.stratify.
-         * It inserts intermediate AND/OR gate nodes explicitly.
-         * * @param {Array<Array<string>>} rows - The Excel data rows (including header).
-         * @param {Object} indices - Column index map.
-         * @returns {Array<Object>} - Array of nodes suitable for d3.stratify().
          */
         function transformChildrenListToHierarchy(rows, indices) {
             const rawData = rows.slice(1);
-            const d3Nodes = new Map(); // Use Map to handle deduplication and merging properties
-
-            // 1. Collect all valid event IDs from the table (Intermediate/Top Events)
+            const d3Nodes = new Map(); 
             const definedEventIds = new Set(rawData.map(r => String(r[indices.id] || "").trim()).filter(id => id.length > 0));
 
-            // 2. Iterate through each row (which defines an Event and its immediate gate structure)
             for (const r of rawData) {
                 const eventId = String(r[indices.id] || "").trim();
                 const andChildrenStr = String(r[indices.andChildren] || "").trim();
@@ -348,24 +384,16 @@
                 
                 if (!eventId) continue;
 
-                // Create or retrieve the main event node (the output of the gate)
                 let outputNode = d3Nodes.get(eventId);
                 if (!outputNode) {
-                    // Use a unique placeholder string instead of null to prevent D3 from seeing multiple roots prematurely.
                     outputNode = {
                         id: eventId,
                         parentId: 'TEMP_ROOT_CANDIDATE_PLACEHOLDER', 
                         type: 'EVENT', 
-                        label: String(r[indices.label] || eventId),
-                        asil: String(r[indices.asil] || ""),
-                        cutsetId: String(r[indices.cutsetId] || ""),
-                        cutsetDesc: String(r[indices.cutsetDesc] || ""),
-                        prob: indices.prob !== -1 ? String(r[indices.prob] || "").trim() : "",
                         isGate: false,
                     };
                 }
                 
-                // Ensure the core properties are set from the row data
                 Object.assign(outputNode, {
                     label: String(r[indices.label] || eventId),
                     asil: String(r[indices.asil] || ""),
@@ -379,10 +407,8 @@
                 // --- Process AND Children ---
                 const andChildren = andChildrenStr ? andChildrenStr.split(',').map(s => s.trim()).filter(s => s) : [];
                 if (andChildren.length > 0) {
-                    // Create intermediate AND Gate ID
                     const gateId = `${eventId}_AND`; 
 
-                    // Gate Node: The gate output flows into the main event (eventId)
                     d3Nodes.set(gateId, {
                         id: gateId,
                         parentId: eventId, 
@@ -391,24 +417,19 @@
                         isGate: true,
                     });
                     
-                    // Re-parent all AND children to the new AND Gate
                     andChildren.forEach(childId => {
-                        // Create the child node (Basic Event or Intermediate Event Input)
                         const childNode = {
                             id: childId,
                             parentId: gateId,
-                            // If the childId exists as an Event ID in the table, it's an Intermediate Event, otherwise, it's a Basic Event.
                             type: definedEventIds.has(childId) ? 'EVENT' : 'BASIC',
-                            label: definedEventIds.has(childId) ? childId : childId, // Label will be overwritten later if it's an Intermediate Event
+                            label: childId,
                             asil: definedEventIds.has(childId) ? 'TRANSFERRED' : 'QM',
                             prob: "",
                             isGate: false,
                         };
                         
-                        // Merge the child node with existing if it exists (e.g., if it was already created as an output node)
                         const existingChild = d3Nodes.get(childId);
                         if (existingChild) {
-                            // Only update parentId, type (and label if it was a generic stub)
                             existingChild.parentId = childNode.parentId;
                             existingChild.type = childNode.type; 
                             d3Nodes.set(childId, existingChild);
@@ -421,10 +442,8 @@
                 // --- Process OR Children ---
                 const orChildren = orChildrenStr ? orChildrenStr.split(',').map(s => s.trim()).filter(s => s) : [];
                 if (orChildren.length > 0) {
-                    // Create intermediate OR Gate ID
                     const gateId = `${eventId}_OR`; 
 
-                    // Gate Node: The gate output flows into the main event (eventId)
                     d3Nodes.set(gateId, {
                         id: gateId,
                         parentId: eventId, 
@@ -433,13 +452,12 @@
                         isGate: true,
                     });
 
-                    // Re-parent all OR children to the new OR Gate
                     orChildren.forEach(childId => {
                         const childNode = {
                             id: childId,
                             parentId: gateId,
                             type: definedEventIds.has(childId) ? 'EVENT' : 'BASIC',
-                            label: definedEventIds.has(childId) ? childId : childId,
+                            label: childId,
                             asil: definedEventIds.has(childId) ? 'TRANSFERRED' : 'QM',
                             prob: "",
                             isGate: false,
@@ -457,7 +475,7 @@
                 }
             }
             
-            // 3. Find the single Top Event (the node that was never listed as a child and retains the placeholder parent)
+            // Find the single Top Event
             let rootNode = Array.from(d3Nodes.values()).find(n => 
                 n.parentId === 'TEMP_ROOT_CANDIDATE_PLACEHOLDER' && !n.isGate
             );
@@ -468,20 +486,16 @@
                 d3Nodes.set(rootNode.id, rootNode);
             }
 
-            // 4. Filter the final list. Any node still carrying the placeholder is an unconnected 
-            // "floating" event that must be excluded from stratification to prevent the "missing parent" error.
+            // Filter out floating events that never became children of the Top Event
             const finalNodes = Array.from(d3Nodes.values()).filter(n => 
                 n.parentId !== 'TEMP_ROOT_CANDIDATE_PLACEHOLDER'
             );
             
-            console.log(`DEBUG: Total nodes generated: ${Array.from(d3Nodes.values()).length}. Nodes passed to stratify: ${finalNodes.length}.`);
-
             return finalNodes;
         }
 
         function renderData(rows) {
             if (!rows || rows.length < 2) return;
-            document.getElementById('empty-state').classList.add('hidden');
             const svg = d3.select("#main-svg");
             svg.selectAll("*").remove();
 
@@ -493,58 +507,97 @@
             svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
             // --- Robust Column Mapping by Header Name ---
-            
             const headerRow = rows[0];
-            console.log("ACTUAL HEADERS READ:", headerRow); 
-            
             const header = headerRow.map(h => String(h).trim().toLowerCase()); 
             const findIndex = (searchKey) => header.findIndex(h => h.includes(searchKey.toLowerCase()));
 
             const indices = {
-                // Core FTA structure definition
                 id: findIndex("event id"),
                 andChildren: findIndex("and children"), 
                 orChildren: findIndex("or children"), 
-                
-                // Visualization data. 'Label' can fall back to 'Event Description'
                 label: findIndex("label") === -1 ? findIndex("event description") : findIndex("label"),
-                
-                // Auxiliary
                 asil: findIndex("asil"),
                 cutsetId: findIndex("cutset id"),
                 cutsetDesc: findIndex("cutset desc"),
                 prob: findIndex("prob"),
             };
             
-            console.log("DEBUG: Column Indices Found (by header search):", indices);
-            
-            // --- CRITICAL COLUMN VALIDATION ---
             if (indices.id === -1 || (indices.andChildren === -1 && indices.orChildren === -1 && findIndex("parent") === -1)) {
-                console.error("CRITICAL ERROR: Data must contain 'Event ID' and either 'Parent' or at least one of 'AND Children'/'OR Children' columns.");
                 updateStatus("Missing Core FTA Columns", "bg-red-600 text-white");
                 return;
             }
             
-            // --- Data Transformation (Use the new children-list transformer) ---
+            // --- Data Transformation ---
             const transformedData = transformChildrenListToHierarchy(rows, indices);
-            
-            console.log("DEBUG: Data array ready for d3.stratify(). Total nodes generated:", transformedData.length);
-            
-            // D3 Stratify will now build the hierarchy from the transformed flat data
             const root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(transformedData);
             
+            // Event Box Dimensions
+            const boxW = 160;
+            const boxH = 65;
+            const headerH = 15;
+            const borderRadius = 6; 
+            
             // Define layout properties
-            const treeLayout = d3.tree().nodeSize([250, 220]);
+            // FIX 1: Increased vertical separation for longer segments
+            const LAYERING_SEP = 100;
+            const treeLayout = d3.tree().nodeSize([250, LAYERING_SEP]); // [Horizontal spacing (X), Vertical spacing (Y)]
             treeLayout(root);
 
             // --- Draw Links ---
+            const FIXED_V_DROP = 25; // Fixed vertical drop distance from parent box bottom to horizontal bus line
+            
             g.selectAll(".link")
                 .data(root.links())
                 .enter().append("path")
                 .attr("class", "link")
                 .attr("d", d => {
-                    const midY = (d.source.y + d.target.y) / 2;
-                    return `M${d.source.x},${d.source.y} L${d.source.x},${midY} L${d.target.x},${midY} L${d.target.x},${d.target.y}`;
+                    // Start Y: Bottom edge of the parent object.
+                    const linkStartY = d.source.data.isGate ? d.source.y + 7.5 : d.source.y + (boxH / 2);
+                    
+                    if (d.target.data.isGate) {
+                        // Case 1: Event (Parent) -> Gate (Child)
+                        // This link is 3 segments: V (short drop) - H (bus) - V (connect to gate symbol center)
+                        
+                        const parentBottom = d.source.y + (boxH / 2); // Bottom edge of parent event
+                        const busY = parentBottom + FIXED_V_DROP; // Horizontal bus line Y (Higher now)
+                        
+                        // Store busY on the target gate node for positioning the gate symbol
+                        d.target.data.busY = busY;
+
+                        // Path: M ParentX, ParentBottomY -> L ParentX, BusY -> L TargetX, BusY
+                        return `M${d.source.x},${parentBottom} L${d.source.x},${busY} L${d.target.x},${busY}`;
+                        
+                    } else if (d.source.data.isGate && !d.target.data.isGate) {
+                        // Case 2: Gate (Parent) -> Event/Basic (Child)
+                        // This link is 4 segments (V-H-V-H) to ensure a long vertical segment for cutsets.
+                        
+                        const gateBusY = d.source.data.busY;
+                        if (gateBusY === undefined) {
+                            // Should not happen if P->G link was drawn correctly
+                            console.error("Gate source missing busY property for G->C link.");
+                            return ""; 
+                        }
+                        
+                        const gateBottom = gateBusY + 7.5; // Bottom of 15-high gate symbol
+                        const childTop = d.target.y - (boxH / 2); // Top edge of child node
+                        
+                        // Total available vertical drop space
+                        const vDropTotal = childTop - gateBottom;
+                        
+                        // Horizontal bus for children: place it 25% down the total drop (to create a long V2 segment)
+                        const V1_RATIO = 0.25; 
+                        const busY_children = gateBottom + (vDropTotal * V1_RATIO); // Horizontal bus for children
+                        
+                        // Store busY for the child node (for cutsets, etc.)
+                        d.target.data.busY = busY_children;
+
+                        // Path: M (Gate Bottom) -> L (V drop to bus) -> L (H to child X) -> L (V drop to child top)
+                        return `M${d.source.x},${gateBottom} L${d.source.x},${busY_children} L${d.target.x},${busY_children} L${d.target.x},${childTop}`;
+                        
+                    } else {
+                         // Fallback for P->C or other unexpected links (should not happen with the data transform)
+                         return "";
+                    }
                 });
 
             // --- Draw Nodes (Events and Gates) ---
@@ -554,41 +607,40 @@
                 .attr("class", d => `node ${d.data.isGate ? 'gate' : 'event'}`)
                 .attr("transform", d => `translate(${d.x},${d.y})`);
 
-            // Logic Gates Drawing (Implicit gates only have type AND or OR)
+            // Logic Gates Drawing
             node.filter(d => d.data.isGate)
                 .each(function(d) {
                     const el = d3.select(this);
                     const type = d.data.type;
-                    const gateYOffset = 65; 
+                    
+                    // FIX 3: Calculate vertical offset to center the gate symbol on the busY line
+                    const busY = d.data.busY;
+                    // d.y is the D3-assigned center. We want the gate symbol's center (y=0 in its local space) 
+                    // to be translated to busY.
+                    const offsetY = busY - d.y; 
 
                     if (type === 'AND') {
                         el.append("path")
                           .attr("class", "gate-and")
                           .attr("d", "M-15,15 L15,15 L15,0 A15,15 0 0,0 -15,0 Z")
-                          .attr("transform", `translate(0, ${gateYOffset})`);
+                          .attr("transform", `translate(0, ${offsetY})`);
                         el.append("text")
                           .attr("class", "gate-text")
                           .attr("text-anchor", "middle")
-                          .attr("y", gateYOffset + 3)
+                          .attr("y", offsetY + 3) // +3 for visual text centering within the symbol
                           .text("AND");
                     } else if (type === 'OR') {
                         el.append("path")
                           .attr("class", "gate-or")
                           .attr("d", "M-15,15 Q-15,-10 0,-15 Q15,-10 15,15 Q0,7 -15,15 Z")
-                          .attr("transform", `translate(0, ${gateYOffset})`);
+                          .attr("transform", `translate(0, ${offsetY})`);
                         el.append("text")
                           .attr("class", "gate-text")
                           .attr("text-anchor", "middle")
-                          .attr("y", gateYOffset + 3)
+                          .attr("y", offsetY + 3) // +3 for visual text centering within the symbol
                           .text("OR");
                     }
                 });
-
-            // Event Box Dimensions
-            const boxW = 160;
-            const boxH = 65;
-            const headerH = 15;
-            const borderRadius = 6; 
 
             // Draw the main event box background for non-gate nodes
             const eventNodes = node.filter(d => !d.data.isGate);
@@ -609,20 +661,16 @@
                 .attr("height", headerH)
                 .attr("x", -boxW/2)
                 .attr("y", -boxH/2)
-                // Use custom path to clip the top corners for the header bar
                 .attr("d", `M${-boxW/2 + borderRadius},${-boxH/2} L${boxW/2 - borderRadius},${-boxH/2} A${borderRadius},${borderRadius} 0 0 1 ${boxW/2},${-boxH/2 + borderRadius} L${boxW/2},${-boxH/2 + headerH} L${-boxW/2},${-boxH/2 + headerH} L${-boxW/2},${-boxH/2 + borderRadius} A${borderRadius},${borderRadius} 0 0 1 ${-boxW/2 + borderRadius},${-boxW/2} Z`)
                 .attr("fill", d => getAsilColor(d.data.asil));
 
-            // Draw the header text (ID, ASIL, and Probability) for non-gate nodes
+            // Draw the header text (ID and ASIL) for non-gate nodes
             eventNodes.append("text")
                 .attr("class", "node-id-text") 
                 .attr("text-anchor", "start")
                 .attr("x", -boxW/2 + 5)
                 .attr("y", -boxH/2 + 11)
-                .text(d => {
-                    const prob = d.data.prob ? ` (${d.data.prob})` : '';
-                    return `${d.data.id} : ${d.data.asil || 'QM'}${prob}`;
-                });
+                .text(d => `${d.data.id} : ${d.data.asil || 'QM'}`);
 
             // Draw the main event description (wrapped text) for non-gate nodes
             eventNodes.each(function(d) {
@@ -638,14 +686,24 @@
                 });
             });
 
+            // Add Probability to the bottom right corner (NEW)
+            eventNodes.filter(d => d.data.prob)
+                .append("text")
+                .attr("class", "node-desc-text")
+                .attr("text-anchor", "end")
+                .attr("x", boxW/2 - 5) // Right edge of box
+                .attr("y", boxH/2 - 5) // Bottom edge of box
+                .text(d => `P: ${d.data.prob}`);
+
             // Cutset Visualization (Wrapped and Left Aligned) for non-gate nodes
             eventNodes.each(function(d) {
                 if (d.data.cutsetId) {
                     const el = d3.select(this);
-                    const lineY = -boxH/2 - 60;
+                    // The cutset line must intersect the V2 link segment.
+                    // Positioning it relative to the node's center (d.y) in the upper half of the layer gap
+                    const lineY = -boxH/2 - 60; 
                     const startX = -boxW/2 - 40;
                     
-                    // The line crosses from above left to just past the center vertical branch
                     el.append("line")
                       .attr("class", "cutset-line")
                       .attr("x1", startX)
