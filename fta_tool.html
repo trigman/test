@@ -1,109 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FTA Excel Add-in</title>
-    <!-- Office.js library provided by Microsoft -->
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FTA Live Visualizer</title>
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
-        :root {
-            --primary: #217346; /* Excel Green */
-            --bg: #f3f2f1;
-            --border: #edebe9;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .header {
-            padding: 10px 15px;
-            background: var(--primary);
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .content {
-            flex: 1;
-            padding: 15px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .card {
-            background: white;
-            padding: 15px;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 2px;
-            cursor: pointer;
-            font-weight: 600;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-
-        button:hover { background: #185a37; }
-        button:disabled { background: #c8c6c4; cursor: not-allowed; }
-
-        .status {
-            font-size: 12px;
-            color: #605e5c;
-            margin-top: 5px;
-            padding: 5px;
-            border-top: 1px solid var(--border);
-        }
-
-        #diagram-preview {
-            width: 100%;
-            height: 200px;
-            border: 1px dashed #a19f9d;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #a19f9d;
-            font-size: 13px;
-            background: #faf9f8;
-        }
-
-        .instruction { font-size: 13px; margin-bottom: 10px; color: #323130; }
+        .node circle { fill: #fff; stroke: #4a5568; stroke-width: 2px; }
+        .node text { font: 12px sans-serif; }
+        .link { fill: none; stroke: #cbd5e0; stroke-width: 2px; }
+        .gate-and { fill: #f56565; }
+        .gate-or { fill: #4299e1; }
+        #diagram-container { min-height: 400px; background: #f7fafc; border-radius: 8px; }
     </style>
 </head>
-<body>
-    <div class="header">
-        <span>FTA Visualizer</span>
-        <small id="app-status">Initializing...</small>
-    </div>
-
-    <div class="content">
-        <div class="card">
-            <p class="instruction">Select your FTA data table in the spreadsheet and click below to generate the diagram.</p>
-            <button id="sync-data">Sync from Selection</button>
-            <button id="insert-diagram" disabled>Insert Image to Sheet</button>
-            <div id="status-msg" class="status">Waiting for Office to start...</div>
+<body class="p-4 bg-gray-50">
+    <div class="max-w-md mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
+        <div class="p-4 border-b">
+            <h1 class="text-xl font-bold text-gray-800">FTA Live Visualizer</h1>
+            <p class="text-sm text-gray-500">Select your FTA table and click Sync.</p>
         </div>
+        
+        <div class="p-4 space-y-4">
+            <div id="status-message" class="p-2 text-xs rounded bg-blue-50 text-blue-700 hidden"></div>
+            
+            <button id="sync-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200 shadow">
+                Sync Selection
+            </button>
 
-        <div class="card">
-            <div id="diagram-preview">
-                Diagram Preview Area
+            <div id="diagram-container" class="relative border-2 border-dashed border-gray-200 flex items-center justify-center overflow-auto">
+                <div id="placeholder-text" class="text-gray-400 text-center p-10">
+                    <p>Diagram will appear here</p>
+                    <p class="text-xs mt-2">Ensure your first row is the 'Top Event'</p>
+                </div>
+                <svg id="fta-svg"></svg>
             </div>
         </div>
     </div>
@@ -111,48 +44,114 @@
     <script>
         Office.onReady((info) => {
             if (info.host === Office.HostType.Excel) {
-                document.getElementById('app-status').innerText = "Connected";
-                document.getElementById('status-msg').innerText = "Excel detected. Select range & sync.";
-                
-                document.getElementById('sync-data').onclick = syncFromExcel;
-                document.getElementById('insert-diagram').onclick = insertImage;
+                document.getElementById("sync-button").onclick = syncData;
             }
         });
 
-        async function syncFromExcel() {
+        async function syncData() {
+            const status = document.getElementById("status-message");
+            status.innerText = "Syncing...";
+            status.classList.remove("hidden");
+
             try {
                 await Excel.run(async (context) => {
-                    // Get the current selection
                     const range = context.workbook.getSelectedRange();
                     range.load("values");
                     await context.sync();
 
-                    const data = range.values;
-                    if (data.length < 2) {
-                        updateStatus("Error: Select at least a header and one data row.");
-                        return;
+                    const rows = range.values;
+                    if (rows.length < 2) {
+                        throw new Error("Please select at least two rows (Header + Data).");
                     }
 
-                    // For this preview, we just show we got the data. 
-                    // In the full version, we'd trigger the SVG rendering engine here.
-                    updateStatus(`Synced ${data.length - 1} rows from sheet.`);
-                    document.getElementById('diagram-preview').innerText = `Previewing FTA: ${data[1][0] || 'Unknown'}`;
-                    document.getElementById('insert-diagram').disabled = false;
+                    // Process rows into a hierarchical structure
+                    // Assuming columns: ID, ParentID, Type, Label
+                    const data = rows.slice(1).map(r => ({
+                        id: String(r[0]),
+                        parentId: String(r[1]),
+                        type: String(r[2]),
+                        label: String(r[3])
+                    }));
+
+                    status.innerText = `Synced ${data.length} components. Building diagram...`;
+                    updateDiagram(data);
                 });
             } catch (error) {
-                updateStatus("Error: " + error.message);
+                status.innerText = "Error: " + error.message;
+                status.classList.replace("bg-blue-50", "bg-red-50");
+                status.classList.replace("text-blue-700", "text-red-700");
             }
         }
 
-        async function insertImage() {
-            updateStatus("Generating PNG...");
-            // In a real app, this would convert the SVG to a base64 string
-            // Then use Excel.run to insert it as a Shape
-            updateStatus("Image inserted into active sheet.");
-        }
+        function updateDiagram(data) {
+            const container = document.getElementById("diagram-container");
+            const svg = d3.select("#fta-svg");
+            const placeholder = document.getElementById("placeholder-text");
+            
+            // Clear previous diagram
+            svg.selectAll("*").remove();
+            placeholder.classList.add("hidden");
 
-        function updateStatus(msg) {
-            document.getElementById('status-msg').innerText = msg;
+            // Build hierarchy
+            const dataMap = data.reduce((map, node) => {
+                map[node.id] = { ...node, children: [] };
+                return map;
+            }, {});
+
+            let rootNode = null;
+            data.forEach(node => {
+                if (!node.parentId || node.parentId === "" || node.parentId === "null" || !dataMap[node.parentId]) {
+                    rootNode = dataMap[node.id];
+                } else {
+                    dataMap[node.parentId].children.push(dataMap[node.id]);
+                }
+            });
+
+            if (!rootNode) {
+                document.getElementById("status-message").innerText = "Error: No root (Top Event) found.";
+                placeholder.classList.remove("hidden");
+                return;
+            }
+
+            const width = container.clientWidth || 400;
+            const height = 400;
+
+            const root = d3.hierarchy(rootNode);
+            const treeLayout = d3.tree().size([width - 100, height - 100]);
+            treeLayout(root);
+
+            const g = svg.attr("width", width)
+                       .attr("height", height)
+                       .append("g")
+                       .attr("transform", "translate(50,50)");
+
+            // Draw links
+            g.selectAll(".link")
+                .data(root.links())
+                .enter()
+                .append("path")
+                .attr("class", "link")
+                .attr("d", d3.linkVertical().x(d => d.x).y(d => d.y));
+
+            // Draw nodes
+            const node = g.selectAll(".node")
+                .data(root.descendants())
+                .enter()
+                .append("g")
+                .attr("class", "node")
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+
+            node.append("circle")
+                .attr("r", 20)
+                .attr("class", d => d.data.type.toLowerCase() === 'and' ? 'gate-and' : 'gate-or');
+
+            node.append("text")
+                .attr("dy", ".35em")
+                .attr("y", 30)
+                .attr("text-anchor", "middle")
+                .text(d => d.data.label || d.data.id);
+            
+            document.getElementById("status-message").innerText = "Diagram Updated Successfully.";
         }
     </script>
 </body>
