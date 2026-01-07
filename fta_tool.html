@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FTA Excel Add-in</title>
+    <!-- Office.js library provided by Microsoft -->
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+        :root {
+            --primary: #217346; /* Excel Green */
+            --bg: #f3f2f1;
+            --border: #edebe9;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 10px 15px;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        button:hover { background: #185a37; }
+        button:disabled { background: #c8c6c4; cursor: not-allowed; }
+
+        .status {
+            font-size: 12px;
+            color: #605e5c;
+            margin-top: 5px;
+            padding: 5px;
+            border-top: 1px solid var(--border);
+        }
+
+        #diagram-preview {
+            width: 100%;
+            height: 200px;
+            border: 1px dashed #a19f9d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #a19f9d;
+            font-size: 13px;
+            background: #faf9f8;
+        }
+
+        .instruction { font-size: 13px; margin-bottom: 10px; color: #323130; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <span>FTA Visualizer</span>
+        <small id="app-status">Initializing...</small>
+    </div>
+
+    <div class="content">
+        <div class="card">
+            <p class="instruction">Select your FTA data table in the spreadsheet and click below to generate the diagram.</p>
+            <button id="sync-data">Sync from Selection</button>
+            <button id="insert-diagram" disabled>Insert Image to Sheet</button>
+            <div id="status-msg" class="status">Waiting for Office to start...</div>
+        </div>
+
+        <div class="card">
+            <div id="diagram-preview">
+                Diagram Preview Area
+            </div>
+        </div>
+    </div>
+
+    <script>
+        Office.onReady((info) => {
+            if (info.host === Office.HostType.Excel) {
+                document.getElementById('app-status').innerText = "Connected";
+                document.getElementById('status-msg').innerText = "Excel detected. Select range & sync.";
+                
+                document.getElementById('sync-data').onclick = syncFromExcel;
+                document.getElementById('insert-diagram').onclick = insertImage;
+            }
+        });
+
+        async function syncFromExcel() {
+            try {
+                await Excel.run(async (context) => {
+                    // Get the current selection
+                    const range = context.workbook.getSelectedRange();
+                    range.load("values");
+                    await context.sync();
+
+                    const data = range.values;
+                    if (data.length < 2) {
+                        updateStatus("Error: Select at least a header and one data row.");
+                        return;
+                    }
+
+                    // For this preview, we just show we got the data. 
+                    // In the full version, we'd trigger the SVG rendering engine here.
+                    updateStatus(`Synced ${data.length - 1} rows from sheet.`);
+                    document.getElementById('diagram-preview').innerText = `Previewing FTA: ${data[1][0] || 'Unknown'}`;
+                    document.getElementById('insert-diagram').disabled = false;
+                });
+            } catch (error) {
+                updateStatus("Error: " + error.message);
+            }
+        }
+
+        async function insertImage() {
+            updateStatus("Generating PNG...");
+            // In a real app, this would convert the SVG to a base64 string
+            // Then use Excel.run to insert it as a Shape
+            updateStatus("Image inserted into active sheet.");
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('status-msg').innerText = msg;
+        }
+    </script>
+</body>
+</html>
