@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Professional v1.4</title>
+    <title>FTA Professional v1.6</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -26,11 +26,17 @@
 
     <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
         <div class="flex items-center space-x-4">
-            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.4</span>
+            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.6</span>
             <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
         </div>
         
-        <div class="flex space-x-3">
+        <div class="flex items-center space-x-4">
+            <!-- New Table Selection Dropdown -->
+            <label for="table-select" class="text-xs font-medium text-gray-300">Data Table:</label>
+            <select id="table-select" class="bg-gray-800 text-white text-sm py-1.5 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-48">
+                <option value="">-- No Tables Loaded --</option>
+            </select>
+
             <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded transition border border-gray-500">
                 Sample
             </button>
@@ -61,6 +67,7 @@
         ];
 
         let officeLoaded = false;
+        let tablesLoaded = false; // Flag to track if tables have been discovered
 
         window.onload = () => {
             document.getElementById('btn-sample').onclick = () => renderData(sampleRows);
@@ -68,7 +75,7 @@
         };
 
         /**
-         * Loads the Office.js library if not already loaded, and then performs Excel readiness checks.
+         * Loads the Office.js library if not already loaded, then checks for tables, and finally reads the data.
          */
         async function handleExcelSync() {
             if (!officeLoaded) {
@@ -77,10 +84,12 @@
                 const script = document.createElement('script');
                 script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
                 script.onload = () => {
-                    Office.onReady((info) => {
+                    Office.onReady(async (info) => {
                         officeLoaded = true;
                         updateStatus("Excel API Ready", "bg-green-500 text-white");
                         console.log("DEBUG: Office.js and Office.onReady completed.", info);
+                        // Once ready, load tables, then proceed to read
+                        await populateTableDropdown();
                         performExcelRead();
                     });
                 };
@@ -90,62 +99,122 @@
                 }
                 document.head.appendChild(script);
             } else {
-                console.log("DEBUG: Office.js already loaded. Proceeding to read Excel.");
+                // If loaded, ensure tables are discovered before attempting read
+                if (!tablesLoaded) {
+                    await populateTableDropdown();
+                }
                 performExcelRead();
             }
         }
-
+        
         /**
-         * Reads data from Excel, prioritizing a table named "FTA_Data" and filtering by "FFTA1".
+         * Fetches all tables in the active sheet and populates the dropdown.
          */
-        async function performExcelRead() {
-            updateStatus("Reading Excel...", "bg-yellow-500 text-black");
-            console.log("DEBUG: Starting Excel.run context.");
+        async function populateTableDropdown() {
+            updateStatus("Discovering Tables...", "bg-blue-500 text-white");
+            console.log("DEBUG: Starting Excel.run context to discover tables.");
+
+            const dropdown = document.getElementById('table-select');
+            dropdown.innerHTML = '<option value="">-- Loading --</option>'; // Temporary loading state
 
             try {
                 await Excel.run(async (context) => {
                     const worksheet = context.workbook.worksheets.getActiveWorksheet();
-                    let rangeToRead;
-                    const targetFtaId = "FFTA1"; // Using sample ID for current debug
-
-                    // 1. Attempt to find and use a Table named 'FTA_Data'
-                    let table = worksheet.tables.getItemOrNullObject("FTA_Data");
-                    table.load("name, range");
+                    const tables = worksheet.tables.load("name");
                     await context.sync();
 
-                    if (!table.isNullObject) {
-                        // Read the entire table range (including headers)
-                        rangeToRead = table.range; 
-                        console.log(`DEBUG: Found and reading data from table: ${table.name}`);
-                        updateStatus(`Reading Table: ${table.name}`, "bg-green-500 text-white");
-                    } else {
-                        // 2. Fallback: Read the entire used range of the active worksheet
-                        rangeToRead = worksheet.getUsedRange();
-                        console.log("DEBUG: Table 'FTA_Data' not found. Reading used range of active sheet.");
-                        updateStatus("Reading Used Range...", "bg-indigo-500 text-white");
+                    dropdown.innerHTML = ''; // Clear options
+                    
+                    if (tables.items.length === 0) {
+                        dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
+                        tablesLoaded = true;
+                        updateStatus("No Tables Found", "bg-yellow-600 text-white");
+                        return;
                     }
+
+                    // Add options to the dropdown
+                    tables.items.forEach(table => {
+                        const option = document.createElement('option');
+                        option.value = table.name;
+                        option.textContent = table.name;
+                        dropdown.appendChild(option);
+                    });
+
+                    // Auto-select "FTA_Data" if it exists, otherwise select the first one.
+                    const defaultTable = tables.items.find(t => t.name.toUpperCase() === "FTA_DATA") || tables.items[0];
+                    if (defaultTable) {
+                        dropdown.value = defaultTable.name;
+                        updateStatus(`Tables Loaded (${tables.items.length})`, "bg-green-500 text-white");
+                    }
+
+                    tablesLoaded = true;
+                    console.log(`DEBUG: Successfully loaded ${tables.items.length} tables.`);
+                });
+            } catch (error) {
+                console.error("Excel Table Discovery Error:", error);
+                dropdown.innerHTML = '<option value="">-- Error Loading Tables --</option>';
+                updateStatus("Table Discovery Error", "bg-red-600 text-white");
+            }
+        }
+
+
+        /**
+         * Reads data from Excel based on the selected table name.
+         */
+        async function performExcelRead() {
+            const selectedTableName = document.getElementById('table-select').value;
+            const targetFtaId = "FFTA1"; 
+
+            if (!selectedTableName) {
+                updateStatus("Select a Table", "bg-red-500 text-white");
+                console.warn("WARNING: No table selected. Cannot proceed with data read.");
+                return;
+            }
+
+            updateStatus(`Reading Table: ${selectedTableName}...`, "bg-yellow-500 text-black");
+            console.log(`DEBUG: Starting Excel.run context to read table '${selectedTableName}'.`);
+
+            try {
+                await Excel.run(async (context) => {
+                    const worksheet = context.workbook.worksheets.getActiveWorksheet();
                     
-                    rangeToRead.load("values");
+                    // 1. Get the specific table by the selected name
+                    let table = worksheet.tables.getItem(selectedTableName);
+                    
+                    // Load header and data body values
+                    table.getHeaderRowRange().load("values");
+                    table.getDataBodyRange().load("values");
                     await context.sync();
 
-                    const values = rangeToRead.values;
+                    const headerValues = table.getHeaderRowRange().values[0];
+                    const dataBodyValues = table.getDataBodyRange().values;
                     
-                    if (!values || values.length < 2) {
-                        updateStatus("Data Empty", "bg-red-500 text-white");
-                        console.error("ERROR: Range is empty or only contains a header row.");
+                    // Combine header and data into the single array structure renderData expects
+                    const allTableRows = [headerValues, ...dataBodyValues];
+
+                    if (allTableRows.length < 2) {
+                        updateStatus("Table Empty", "bg-red-500 text-white");
+                        console.error("ERROR: Table data body is empty.");
                         return;
                     }
                     
-                    console.log(`DEBUG: Successfully read ${values.length} rows from Excel.`);
+                    console.log(`DEBUG: Successfully read ${dataBodyValues.length} data rows from Table '${selectedTableName}'.`);
                     
-                    const header = values[0]; 
-                    let filteredValues = [header]; 
+                    // Find the index of the FTA ID column in the table headers for filtering
+                    const ftaIdColumnIndex = headerValues.map(h => String(h).trim().toLowerCase()).findIndex(h => h.includes("fta id"));
                     
-                    // Column 0 is expected to be "FTA ID"
-                    const dataRows = values.slice(1);
-                    const filteredData = dataRows.filter(row => 
-                        // Check if the FTA ID column (index 0) matches the target ID (case-insensitive and trimmed)
-                        row.length > 0 && String(row[0] || "").trim().toUpperCase() === targetFtaId.toUpperCase()
+                    if (ftaIdColumnIndex === -1) {
+                        console.warn("WARNING: 'FTA ID' column not found. Skipping filtering and rendering all table data.");
+                        renderData(allTableRows);
+                        updateStatus(`Rendered ${dataBodyValues.length} Events (No FTA Filter)`, "bg-green-600 text-white");
+                        return;
+                    }
+
+                    // Filter data client-side by FTA ID
+                    let filteredValues = [headerValues]; 
+                    
+                    const filteredData = dataBodyValues.filter(row => 
+                        row.length > ftaIdColumnIndex && String(row[ftaIdColumnIndex] || "").trim().toUpperCase() === targetFtaId.toUpperCase()
                     );
                     
                     filteredValues = filteredValues.concat(filteredData);
@@ -158,12 +227,17 @@
                         console.warn(`WARNING: No valid data rows found for FTA ID '${targetFtaId}'.`);
                     } else {
                         renderData(filteredValues);
-                        updateStatus(`Rendered ${filteredValues.length - 1} Events (FTA ID: ${targetFtaId})`, "bg-green-600 text-white");
+                        updateStatus(`Rendered ${filteredValues.length - 1} Events (Table: ${selectedTableName})`, "bg-green-600 text-white");
                     }
                 });
             } catch (error) {
                 console.error("Excel Runtime Error:", error);
-                updateStatus("Excel Error", "bg-red-600 text-white");
+                if (error instanceof OfficeExtension.Error && error.code === 'ItemNotFound') {
+                     updateStatus("Table Not Found", "bg-red-600 text-white");
+                     console.error(`ERROR: The selected table '${selectedTableName}' was not found.`);
+                } else {
+                    updateStatus("Excel Error", "bg-red-600 text-white");
+                }
             }
         }
 
@@ -215,11 +289,11 @@
 
             svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
-            // --- Robust Column Mapping by Header Name (v1.4 Debug and Fallback) ---
+            // --- Robust Column Mapping by Header Name ---
             
             // 0. LOGGING: Print the exact headers read from the spreadsheet
             const headerRow = rows[0];
-            console.log("ACTUAL HEADERS READ:", headerRow); // IMPORTANT: Ask the user to share this output.
+            console.log("ACTUAL HEADERS READ:", headerRow); 
             
             // 1. Convert all headers to lower case and trim for reliable matching
             const header = headerRow.map(h => String(h).trim().toLowerCase()); 
@@ -240,13 +314,13 @@
             console.log("DEBUG: Column Indices Found (by header search):", indices);
             
             // 2. FALLBACK/VALIDATION: If header search failed, use hardcoded indices
+            // NOTE: Since we are using Excel Tables, index fallback is less common but still necessary for robustness.
             let useFallback = false;
             if (indices.id === -1 || indices.parentId === -1 || indices.type === -1 || indices.label === -1) {
-                console.warn("WARNING: Header search failed for critical columns. Falling back to index-based column mapping (assuming standard order: FTA ID, Event ID, Parent, Type, Label...).");
+                console.warn("WARNING: Header search failed for critical columns. Falling back to index-based column mapping (assuming standard order: FTA ID=0, Event ID=1, Parent=2, Type=3, Label=4...).");
                 useFallback = true;
                 
-                // Hardcoded indices based on standard FTA structure (Column Index: 0=FTA ID, 1=Event ID, 2=Parent, 3=Type, 4=Label, 5=ASIL)
-                // Note: The index is relative to the entire range read, including the FTA ID column (index 0).
+                // Assuming columns 1, 2, 3, 4, etc. after the FTA ID (index 0)
                 indices.id = indices.id === -1 ? 1 : indices.id; 
                 indices.parentId = indices.parentId === -1 ? 2 : indices.parentId; 
                 indices.type = indices.type === -1 ? 3 : indices.type; 
