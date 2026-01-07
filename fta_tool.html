@@ -66,32 +66,103 @@
             document.getElementById('btn-sync').onclick = handleExcelSync;
         };
 
+        /**
+         * Loads the Office.js library if not already loaded, and then performs Excel readiness checks.
+         */
         async function handleExcelSync() {
             if (!officeLoaded) {
+                console.log("DEBUG: Office.js not loaded. Attaching script.");
+                updateStatus("Loading Excel API...", "bg-gray-600 text-white");
                 const script = document.createElement('script');
                 script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
                 script.onload = () => {
                     Office.onReady((info) => {
                         officeLoaded = true;
-                        updateStatus("Connected", "bg-green-500 text-white");
+                        updateStatus("Excel API Ready", "bg-green-500 text-white");
+                        console.log("DEBUG: Office.js and Office.onReady completed.", info);
                         performExcelRead();
                     });
                 };
+                script.onerror = () => {
+                     updateStatus("API Load Error", "bg-red-500 text-white");
+                     console.error("ERROR: Failed to load Office.js from CDN.");
+                }
                 document.head.appendChild(script);
             } else {
+                console.log("DEBUG: Office.js already loaded. Proceeding to read Excel.");
                 performExcelRead();
             }
         }
 
+        /**
+         * Reads data from Excel, prioritizing a table named "FTA_Data" and filtering by "FFTA1".
+         */
         async function performExcelRead() {
+            updateStatus("Reading Excel...", "bg-yellow-500 text-black");
+            console.log("DEBUG: Starting Excel.run context.");
+
             try {
                 await Excel.run(async (context) => {
-                    const range = context.workbook.getSelectedRange();
-                    range.load("values");
+                    const worksheet = context.workbook.worksheets.getActiveWorksheet();
+                    let rangeToRead;
+                    const targetFtaId = "FFTA1"; 
+
+                    // 1. Attempt to find and use a Table named 'FTA_Data'
+                    let table = worksheet.tables.getItemOrNullObject("FTA_Data");
+                    table.load("name");
                     await context.sync();
-                    renderData(range.values);
+
+                    if (!table.isNullObject) {
+                        // If the table exists, read its entire range (including headers)
+                        rangeToRead = table.getRange(); 
+                        console.log(`DEBUG: Found and reading data from table: ${table.name}`);
+                        updateStatus(`Reading Table: ${table.name}`, "bg-green-500 text-white");
+                    } else {
+                        // 2. Fallback: Read the entire used range of the active worksheet
+                        rangeToRead = worksheet.getUsedRange();
+                        console.log("DEBUG: Table 'FTA_Data' not found. Reading used range of active sheet.");
+                        updateStatus("Reading Used Range...", "bg-indigo-500 text-white");
+                    }
+                    
+                    rangeToRead.load("values");
+                    await context.sync();
+
+                    const values = rangeToRead.values;
+                    
+                    if (!values || values.length < 2) {
+                        updateStatus("Data Empty", "bg-red-500 text-white");
+                        console.error("ERROR: Range is empty or only contains a header row.");
+                        return;
+                    }
+                    
+                    console.log(`DEBUG: Successfully read ${values.length} rows from Excel.`);
+                    
+                    // The first row is assumed to be the header
+                    const header = values[0]; 
+                    let filteredValues = [header]; // Always include header
+                    
+                    // Filter data rows by the FTA ID in the first column (index 0)
+                    const dataRows = values.slice(1);
+                    const filteredData = dataRows.filter(row => 
+                        row.length > 0 && String(row[0]).toUpperCase() === targetFtaId.toUpperCase()
+                    );
+                    
+                    filteredValues = filteredValues.concat(filteredData);
+
+                    console.log(`DEBUG: Filtered data by FTA ID '${targetFtaId}'. Total rows to render: ${filteredValues.length}`);
+                    
+                    if (filteredValues.length <= 1) {
+                        updateStatus(`No Data for ID: ${targetFtaId}`, "bg-red-500 text-white");
+                        console.warn(`WARNING: No valid data rows found for FTA ID '${targetFtaId}'.`);
+                    } else {
+                        renderData(filteredValues);
+                        updateStatus(`Rendered ${filteredValues.length - 1} Events (FTA ID: ${targetFtaId})`, "bg-green-600 text-white");
+                    }
                 });
-            } catch (e) { console.error(e); }
+            } catch (error) {
+                console.error("Excel Runtime Error:", error);
+                updateStatus("Excel Error", "bg-red-600 text-white");
+            }
         }
 
         function updateStatus(text, classes) {
@@ -176,15 +247,17 @@
                 // Initialize element selection first
                 const el = d3.select(this);
 
-                // No gate is drawn for leaf nodes (basic events)
+                // Only draw gates for non-leaf nodes
                 if (!d.children || d.children.length === 0) {
                     return; 
                 }
 
                 const type = d.data.type;
-                const gateYOffset = 65; // Vertical position for the gate base
+                // Move the gates slightly further down to give space between the box and the gate
+                const gateYOffset = 65; 
 
                 if (type === 'AND') {
+                    // AND gate symbol path
                     el.append("path")
                       .attr("class", "gate-and")
                       .attr("d", "M-15,15 L15,15 L15,0 A15,15 0 0,0 -15,0 Z")
@@ -195,6 +268,7 @@
                       .attr("y", gateYOffset + 3)
                       .text("AND");
                 } else if (type === 'OR') {
+                    // OR gate symbol path (using quadratic Bezier curves for the arc)
                     el.append("path")
                       .attr("class", "gate-or")
                       .attr("d", "M-15,15 Q-15,-10 0,-15 Q15,-10 15,15 Q0,7 -15,15 Z")
@@ -213,6 +287,7 @@
             const headerH = 15;
             const borderRadius = 6; // Value for rounded corners
 
+            // Draw the main event box background
             node.append("rect")
                 .attr("class", "node-box")
                 .attr("width", boxW)
@@ -222,23 +297,26 @@
                 .attr("rx", borderRadius) // Apply rounding
                 .attr("ry", borderRadius); // Apply rounding
 
+            // Draw the colored ASIL header
             node.append("rect")
                 .attr("class", "node-header")
                 .attr("width", boxW)
                 .attr("height", headerH)
                 .attr("x", -boxW/2)
                 .attr("y", -boxH/2)
-                .attr("rx", borderRadius) // Apply rounding
-                .attr("ry", borderRadius) // Apply rounding
+                // Use custom path to clip the top corners for the header bar
+                .attr("d", `M${-boxW/2 + borderRadius},${-boxH/2} L${boxW/2 - borderRadius},${-boxH/2} A${borderRadius},${borderRadius} 0 0 1 ${boxW/2},${-boxH/2 + borderRadius} L${boxW/2},${-boxH/2 + headerH} L${-boxW/2},${-boxH/2 + headerH} L${-boxW/2},${-boxH/2 + borderRadius} A${borderRadius},${borderRadius} 0 0 1 ${-boxW/2 + borderRadius},${-boxH/2} Z`)
                 .attr("fill", d => getAsilColor(d.data.asil));
 
+            // Draw the header text (ID and ASIL)
             node.append("text")
-                .attr("class", "node-id-text") // Text fill is now black via CSS
+                .attr("class", "node-id-text") 
                 .attr("text-anchor", "start")
                 .attr("x", -boxW/2 + 5)
                 .attr("y", -boxH/2 + 11)
                 .text(d => `${d.data.id} : ${d.data.asil || 'QM'}`);
 
+            // Draw the main event description (wrapped text)
             node.each(function(d) {
                 const el = d3.select(this);
                 const lines = wrapText(d.data.label, boxW - 15, 5.5);
