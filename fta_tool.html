@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Professional v1.3</title>
+    <title>FTA Professional v1.4</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -26,7 +26,7 @@
 
     <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
         <div class="flex items-center space-x-4">
-            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.3</span>
+            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.4</span>
             <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
         </div>
         
@@ -215,9 +215,14 @@
 
             svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
-            // --- Robust Column Mapping by Header Name (v1.3 Fix) ---
+            // --- Robust Column Mapping by Header Name (v1.4 Debug and Fallback) ---
+            
+            // 0. LOGGING: Print the exact headers read from the spreadsheet
+            const headerRow = rows[0];
+            console.log("ACTUAL HEADERS READ:", headerRow); // IMPORTANT: Ask the user to share this output.
+            
             // 1. Convert all headers to lower case and trim for reliable matching
-            const header = rows[0].map(h => String(h).trim().toLowerCase()); 
+            const header = headerRow.map(h => String(h).trim().toLowerCase()); 
 
             // Helper function to find index using a lowercased search key
             const findIndex = (searchKey) => header.findIndex(h => h.includes(searchKey.toLowerCase()));
@@ -232,11 +237,31 @@
                 cutsetDesc: findIndex("cutset desc"),
             };
             
-            console.log("DEBUG: Column Indices Found:", indices);
-
+            console.log("DEBUG: Column Indices Found (by header search):", indices);
+            
+            // 2. FALLBACK/VALIDATION: If header search failed, use hardcoded indices
+            let useFallback = false;
             if (indices.id === -1 || indices.parentId === -1 || indices.type === -1 || indices.label === -1) {
-                console.error("ERROR: One or more essential columns (Event ID, Parent, Type, Label) not found in the header row. Check your header spelling.");
-                updateStatus("Missing Columns", "bg-red-600 text-white");
+                console.warn("WARNING: Header search failed for critical columns. Falling back to index-based column mapping (assuming standard order: FTA ID, Event ID, Parent, Type, Label...).");
+                useFallback = true;
+                
+                // Hardcoded indices based on standard FTA structure (Column Index: 0=FTA ID, 1=Event ID, 2=Parent, 3=Type, 4=Label, 5=ASIL)
+                // Note: The index is relative to the entire range read, including the FTA ID column (index 0).
+                indices.id = indices.id === -1 ? 1 : indices.id; 
+                indices.parentId = indices.parentId === -1 ? 2 : indices.parentId; 
+                indices.type = indices.type === -1 ? 3 : indices.type; 
+                indices.label = indices.label === -1 ? 4 : indices.label; 
+                indices.asil = indices.asil === -1 ? 5 : indices.asil; 
+                indices.cutsetId = indices.cutsetId === -1 ? 6 : indices.cutsetId; 
+                indices.cutsetDesc = indices.cutsetDesc === -1 ? 7 : indices.cutsetDesc; 
+                
+                console.log("DEBUG: Column Indices Used (after fallback):", indices);
+            }
+            
+            // Final check after potential fallback
+            if (indices.id === -1 || indices.parentId === -1 || indices.type === -1 || indices.label === -1) {
+                console.error("CRITICAL ERROR: Failed to find essential columns even with index fallback.");
+                updateStatus("Fatal Column Error", "bg-red-600 text-white");
                 return;
             }
 
@@ -244,7 +269,7 @@
                 // Read from the dynamically determined index
                 const parentIdRaw = String(r[indices.parentId] || "").trim();
                 
-                // CRITICAL FIX: Use null for the root node's parent ID to prevent D3 errors
+                // CRITICAL: Use null for the root node's parent ID to prevent D3 errors
                 const parentId = parentIdRaw === "" ? null : parentIdRaw;
                 
                 // Use the dynamically determined indices to access the correct column data
