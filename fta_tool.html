@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Professional v1.2</title>
+    <title>FTA Professional v1.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -26,7 +26,7 @@
 
     <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
         <div class="flex items-center space-x-4">
-            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.2</span>
+            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.3</span>
             <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
         </div>
         
@@ -215,16 +215,21 @@
 
             svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
-            // --- Robust Column Mapping by Header Name ---
-            const header = rows[0].map(h => String(h).trim()); // Trim headers for matching
+            // --- Robust Column Mapping by Header Name (v1.3 Fix) ---
+            // 1. Convert all headers to lower case and trim for reliable matching
+            const header = rows[0].map(h => String(h).trim().toLowerCase()); 
+
+            // Helper function to find index using a lowercased search key
+            const findIndex = (searchKey) => header.findIndex(h => h.includes(searchKey.toLowerCase()));
+
             const indices = {
-                id: header.findIndex(h => h.includes("Event ID")),
-                parentId: header.findIndex(h => h.includes("Parent")),
-                type: header.findIndex(h => h.includes("Type")),
-                label: header.findIndex(h => h.includes("Label")),
-                asil: header.findIndex(h => h.includes("ASIL")),
-                cutsetId: header.findIndex(h => h.includes("Cutset ID")),
-                cutsetDesc: header.findIndex(h => h.includes("Cutset Desc")),
+                id: findIndex("event id"),
+                parentId: findIndex("parent"),
+                type: findIndex("type"),
+                label: findIndex("label"),
+                asil: findIndex("asil"),
+                cutsetId: findIndex("cutset id"),
+                cutsetDesc: findIndex("cutset desc"),
             };
             
             console.log("DEBUG: Column Indices Found:", indices);
@@ -236,6 +241,7 @@
             }
 
             const data = rows.slice(1).map(r => {
+                // Read from the dynamically determined index
                 const parentIdRaw = String(r[indices.parentId] || "").trim();
                 
                 // CRITICAL FIX: Use null for the root node's parent ID to prevent D3 errors
