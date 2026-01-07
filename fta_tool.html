@@ -2,229 +2,288 @@
 <html>
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Live Visualizer</title>
-    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <title>FTA Professional</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
-        .node rect { fill: #2d3748; stroke: #4a5568; stroke-width: 1px; rx: 4; ry: 4; }
-        .node text { font: 11px sans-serif; fill: #fff; pointer-events: none; }
-        .link { fill: none; stroke: #cbd5e0; stroke-width: 2px; }
-        .gate-label { font-size: 10px; font-weight: bold; fill: #2d3748; }
-        #diagram-container { height: 500px; background: #f7fafc; border-radius: 8px; cursor: grab; }
-        #diagram-container:active { cursor: grabbing; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        .link { fill: none; stroke: #4a5568; stroke-width: 2px; shape-rendering: crispEdges; }
+        .node-box { fill: white; stroke: #2d3748; stroke-width: 1.5px; }
+        .node-header { stroke: #2d3748; stroke-width: 1px; }
+        .node-id-text { fill: black; font-size: 10px; font-weight: bold; text-transform: uppercase; } /* FILL CHANGED TO BLACK */
+        .node-desc-text { fill: #2d3748; font-size: 9px; font-weight: 500; }
+        .gate-and { fill: #feb2b2; stroke: #c53030; stroke-width: 1.5px; }
+        .gate-or { fill: #bee3f8; stroke: #2b6cb0; stroke-width: 1.5px; }
+        .gate-basic { fill: #e2e8f0; stroke: #4a5568; stroke-width: 1.5px; }
+        .gate-text { font-size: 8px; font-weight: 900; fill: #2d3748; pointer-events: none; }
+        .cutset-line { stroke: #e53e3e; stroke-width: 1.5px; stroke-dasharray: 3,3; }
+        .cutset-text { fill: #c53030; font-size: 8px; font-weight: bold; }
+        #canvas-container { background: #edf2f7; height: calc(100vh - 64px); width: 100%; }
     </style>
 </head>
-<body class="p-4 bg-gray-100 font-sans">
-    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl overflow-hidden border border-gray-200">
-        <!-- Header -->
-        <div class="p-4 bg-gray-800 text-white flex justify-between items-center">
-            <div>
-                <h1 class="text-lg font-bold">FTA Live Editor</h1>
-                <p class="text-xs opacity-75">Visualizing Fault Tree Structures</p>
-            </div>
-            <div class="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
-                <button id="mode-excel" class="px-3 py-1 text-xs rounded btn-mode-active bg-blue-500">Excel</button>
-                <button id="mode-debug" class="px-3 py-1 text-xs rounded hover:bg-gray-600 transition">Debug/Sample</button>
-            </div>
+<body class="flex flex-col">
+
+    <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
+        <div class="flex items-center space-x-4">
+            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO</span>
+            <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
         </div>
         
-        <div class="flex flex-col md:flex-row h-full">
-            <!-- Sidebar Controls -->
-            <div class="w-full md:w-64 p-4 border-r border-gray-200 bg-gray-50 space-y-4">
-                <div id="excel-controls">
-                    <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Excel Integration</label>
-                    <button id="sync-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded shadow-sm transition">
-                        Sync Selection
-                    </button>
-                </div>
-
-                <div id="debug-controls" class="hidden space-y-3">
-                    <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Debug Mode</label>
-                    <button id="load-sample" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition shadow-sm">
-                        Load Sample Data
-                    </button>
-                    <textarea id="manual-input" class="w-full h-32 text-xs p-2 border rounded font-mono" placeholder="ID,ParentID,Type,Label..."></textarea>
-                    <button id="render-manual" class="w-full bg-gray-800 text-white text-xs py-1 rounded">Render Manual</button>
-                </div>
-
-                <div class="pt-4 border-t border-gray-200">
-                    <div id="status-message" class="p-3 text-xs rounded-lg bg-gray-200 text-gray-700 break-words">
-                        Waiting for input...
-                    </div>
-                </div>
-            </div>
-
-            <!-- Visualization Canvas -->
-            <div class="flex-1 p-4 bg-white">
-                <div id="diagram-container" class="relative border border-gray-300 overflow-hidden shadow-inner">
-                    <svg id="fta-svg" class="w-full h-full"></svg>
-                </div>
-            </div>
+        <div class="flex space-x-3">
+            <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded transition border border-gray-500">
+                Sample
+            </button>
+            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded transition shadow-lg">
+                Sync Excel
+            </button>
         </div>
-    </div>
+    </nav>
+
+    <main id="canvas-container" class="relative">
+        <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 animate-pulse">
+            <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 002-2h2a2 2 0 002 2"></path></svg>
+            <p>Ready to visualize</p>
+        </div>
+        <svg id="main-svg" class="w-full h-full"></svg>
+    </main>
 
     <script>
-        let currentMode = 'excel';
-        const sampleData = [
-            ["ID", "ParentID", "Type", "Label"],
-            ["TOP", "", "OR", "Violation of SG_001"],
-            ["E1", "TOP", "AND", "APP signal error"],
-            ["E2", "TOP", "OR", "AP/BRK interlock fail"],
-            ["E3", "E1", "AND", "VCU APP check fail"],
-            ["E4", "E1", "BASIC", "FSCU APP check fail"],
-            ["E5", "E2", "BASIC", "MCU cross check fail"]
+        const sampleRows = [
+            ["FTA ID", "Event ID", "Parent", "Type", "Label", "ASIL", "Cutset ID", "Cutset Desc"],
+            ["FFTA1", "SG1", "", "AND", "Violation of SG1: Prevent unintended acceleration above driver request.", "ASIL D", "", ""],
+            ["FFTA1", "E1", "SG1", "BASIC", "e-stop fails", "ASIL C (D)", "FSR1.1", "The e-stop (safety mechanism independent from VCU) shall return the vehicle to the safe state of zero torque"],
+            ["FFTA1", "E2", "SG1", "OR", "MCU receives torque request unintended by driver", "ASIL A(D)", "FSR1.2", "MCU shall not provide torque if not commanded by driver"],
+            ["FFTA1", "E3", "E2", "BASIC", "implausible or invalid accelerator pedal signal", "ASIL A(D)", "FSR1.3", "The VCU shall detect implausible or invalid accelerator pedal position input within the Fault Tolerant Time Interval (FTTI)."],
+            ["FFTA1", "E4", "E2", "BASIC", "brake interlock fails", "ASIL A(D)", "FSR1.4", "VCU commands 0 torque when brake pedal applied"],
+            ["FFTA1", "E5", "E2", "BASIC", "loss or corruption of communication results in unintended torque command", "ASIL A(D)", "FSR1.5", "MCU loss of CAN signal triggers timeout to 0 torque safe state within FTTI"]
         ];
 
-        Office.onReady((info) => {
-            setupUI();
-        });
+        let officeLoaded = false;
 
-        function setupUI() {
-            document.getElementById("mode-excel").onclick = () => switchMode('excel');
-            document.getElementById("mode-debug").onclick = () => switchMode('debug');
-            document.getElementById("sync-button").onclick = syncFromExcel;
-            document.getElementById("load-sample").onclick = () => processData(sampleData);
-            document.getElementById("render-manual").onclick = renderFromTextarea;
+        window.onload = () => {
+            document.getElementById('btn-sample').onclick = () => renderData(sampleRows);
+            document.getElementById('btn-sync').onclick = handleExcelSync;
+        };
 
-            // Initialize Zoom
-            const svg = d3.select("#fta-svg");
-            const g = svg.append("g").attr("class", "main-g");
-            
-            const zoom = d3.zoom()
-                .scaleExtent([0.1, 3])
-                .on("zoom", (event) => g.attr("transform", event.transform));
-            
-            svg.call(zoom);
+        async function handleExcelSync() {
+            if (!officeLoaded) {
+                const script = document.createElement('script');
+                script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
+                script.onload = () => {
+                    Office.onReady((info) => {
+                        officeLoaded = true;
+                        updateStatus("Connected", "bg-green-500 text-white");
+                        performExcelRead();
+                    });
+                };
+                document.head.appendChild(script);
+            } else {
+                performExcelRead();
+            }
         }
 
-        function switchMode(mode) {
-            currentMode = mode;
-            document.getElementById('excel-controls').classList.toggle('hidden', mode !== 'excel');
-            document.getElementById('debug-controls').classList.toggle('hidden', mode !== 'debug');
-            document.getElementById('mode-excel').classList.toggle('bg-blue-500', mode === 'excel');
-            document.getElementById('mode-debug').classList.toggle('bg-blue-500', mode === 'debug');
-            updateStatus(`Switched to ${mode} mode.`);
-        }
-
-        function updateStatus(msg, isError = false) {
-            const el = document.getElementById("status-message");
-            el.innerText = msg;
-            el.className = `p-3 text-xs rounded-lg ${isError ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'}`;
-        }
-
-        async function syncFromExcel() {
-            updateStatus("Reading Excel...");
+        async function performExcelRead() {
             try {
                 await Excel.run(async (context) => {
                     const range = context.workbook.getSelectedRange();
                     range.load("values");
                     await context.sync();
-                    processData(range.values);
+                    renderData(range.values);
                 });
-            } catch (error) {
-                updateStatus("Excel Error: " + error.message, true);
-            }
+            } catch (e) { console.error(e); }
         }
 
-        function renderFromTextarea() {
-            const text = document.getElementById("manual-input").value;
-            const rows = text.split('\n').map(line => line.split(',').map(cell => cell.trim()));
-            processData(rows);
+        function updateStatus(text, classes) {
+            const pill = document.getElementById('status-pill');
+            pill.innerText = text;
+            pill.className = `text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest ${classes}`;
         }
 
-        function processData(rows) {
-            if (!rows || rows.length < 2) {
-                updateStatus("Insufficient data selected.", true);
-                return;
-            }
-            
-            // Map table to objects
-            const data = rows.slice(1).filter(r => r[0]).map(r => ({
-                id: String(r[0]),
-                parentId: String(r[1]),
-                type: String(r[2] || 'OR').toUpperCase(),
-                label: String(r[3] || '')
-            }));
-
-            updateDiagram(data);
+        function getAsilColor(asil) {
+            if (!asil) return "#718096";
+            const a = asil.toUpperCase();
+            if (a.includes("ASIL D")) return "#e53e3e";
+            if (a.includes("ASIL C")) return "#ed8936";
+            if (a.includes("ASIL B")) return "#ecc94b";
+            if (a.includes("ASIL A")) return "#4299e1";
+            return "#a0aec0";
         }
 
-        function updateDiagram(data) {
-            const svg = d3.select("#fta-svg");
-            const g = svg.select(".main-g");
-            g.selectAll("*").remove();
 
-            // Build hierarchy
-            const dataMap = {};
-            data.forEach(d => dataMap[d.id] = {...d, children: []});
+        function wrapText(text, width, charWidth = 5) {
+            if (!text) return [];
+            const words = text.split(/\s+/);
+            const lines = [];
+            let currentLine = words[0];
 
-            let rootNode = null;
-            data.forEach(d => {
-                const node = dataMap[d.id];
-                if (!d.parentId || d.parentId === "" || !dataMap[d.parentId]) {
-                    rootNode = node;
+            for (let i = 1; i < words.length; i++) {
+                if ((currentLine + " " + words[i]).length * charWidth < width) {
+                    currentLine += " " + words[i];
                 } else {
-                    dataMap[d.parentId].children.push(node);
+                    lines.push(currentLine);
+                    currentLine = words[i];
                 }
-            });
-
-            if (!rootNode) {
-                updateStatus("Root node not found!", true);
-                return;
             }
+            lines.push(currentLine);
+            return lines;
+        }
 
-            const width = document.getElementById("diagram-container").clientWidth;
-            const height = 500;
+        function renderData(rows) {
+            if (!rows || rows.length < 2) return;
+            document.getElementById('empty-state').classList.add('hidden');
+            const svg = d3.select("#main-svg");
+            svg.selectAll("*").remove();
 
-            const hierarchy = d3.hierarchy(rootNode);
-            const treeLayout = d3.tree().nodeSize([160, 100]);
-            treeLayout(hierarchy);
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const g = svg.append("g");
 
-            // Center the tree
-            g.attr("transform", `translate(${width/2}, 50)`);
+            svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
-            // Links
+            const data = rows.slice(1).map(r => ({ 
+                id: String(r[1]), 
+                parentId: String(r[2]), 
+                type: (r[3] || 'BASIC').toUpperCase(), 
+                label: String(r[4] || r[1]),
+                asil: String(r[5] || ""),
+                cutsetId: String(r[6] || ""),
+                cutsetDesc: String(r[7] || "")
+            }));
+            
+            const root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(data);
+            const treeLayout = d3.tree().nodeSize([250, 220]);
+            treeLayout(root);
+
             g.selectAll(".link")
-                .data(hierarchy.links())
-                .enter()
-                .append("path")
+                .data(root.links())
+                .enter().append("path")
                 .attr("class", "link")
-                .attr("d", d3.linkVertical()
-                    .x(d => d.x)
-                    .y(d => d.y));
+                .attr("d", d => {
+                    const midY = (d.source.y + d.target.y) / 2;
+                    return `M${d.source.x},${d.source.y} L${d.source.x},${midY} L${d.target.x},${midY} L${d.target.x},${d.target.y}`;
+                });
 
-            // Nodes
-            const nodes = g.selectAll(".node")
-                .data(hierarchy.descendants())
-                .enter()
-                .append("g")
+            const node = g.selectAll(".node")
+                .data(root.descendants())
+                .enter().append("g")
                 .attr("class", "node")
                 .attr("transform", d => `translate(${d.x},${d.y})`);
 
-            // Box
-            nodes.append("rect")
-                .attr("width", 120)
-                .attr("height", 40)
-                .attr("x", -60)
-                .attr("y", -20);
+            // Logic Gates Drawing (Only if has children)
+            node.each(function(d) {
+                // Initialize element selection first
+                const el = d3.select(this);
 
-            // Label
-            nodes.append("text")
-                .attr("text-anchor", "middle")
-                .attr("y", 0)
-                .text(d => d.data.label.length > 15 ? d.data.label.substring(0,12)+'...' : d.data.label);
+                // No gate is drawn for leaf nodes (basic events)
+                if (!d.children || d.children.length === 0) {
+                    return; 
+                }
 
-            // Gate Symbol
-            nodes.append("text")
-                .attr("class", "gate-label")
-                .attr("text-anchor", "middle")
-                .attr("y", 35)
-                .text(d => d.data.type);
+                const type = d.data.type;
+                const gateYOffset = 65; // Vertical position for the gate base
 
-            updateStatus(`Successfully rendered ${data.length} components.`);
+                if (type === 'AND') {
+                    el.append("path")
+                      .attr("class", "gate-and")
+                      .attr("d", "M-15,15 L15,15 L15,0 A15,15 0 0,0 -15,0 Z")
+                      .attr("transform", `translate(0, ${gateYOffset})`);
+                    el.append("text")
+                      .attr("class", "gate-text")
+                      .attr("text-anchor", "middle")
+                      .attr("y", gateYOffset + 3)
+                      .text("AND");
+                } else if (type === 'OR') {
+                    el.append("path")
+                      .attr("class", "gate-or")
+                      .attr("d", "M-15,15 Q-15,-10 0,-15 Q15,-10 15,15 Q0,7 -15,15 Z")
+                      .attr("transform", `translate(0, ${gateYOffset})`);
+                    el.append("text")
+                      .attr("class", "gate-text")
+                      .attr("text-anchor", "middle")
+                      .attr("y", gateYOffset + 3)
+                      .text("OR");
+                }
+            });
+
+            // Event Box Dimensions
+            const boxW = 160;
+            const boxH = 65;
+            const headerH = 15;
+            const borderRadius = 6; // Value for rounded corners
+
+            node.append("rect")
+                .attr("class", "node-box")
+                .attr("width", boxW)
+                .attr("height", boxH)
+                .attr("x", -boxW/2)
+                .attr("y", -boxH/2)
+                .attr("rx", borderRadius) // Apply rounding
+                .attr("ry", borderRadius); // Apply rounding
+
+            node.append("rect")
+                .attr("class", "node-header")
+                .attr("width", boxW)
+                .attr("height", headerH)
+                .attr("x", -boxW/2)
+                .attr("y", -boxH/2)
+                .attr("rx", borderRadius) // Apply rounding
+                .attr("ry", borderRadius) // Apply rounding
+                .attr("fill", d => getAsilColor(d.data.asil));
+
+            node.append("text")
+                .attr("class", "node-id-text") // Text fill is now black via CSS
+                .attr("text-anchor", "start")
+                .attr("x", -boxW/2 + 5)
+                .attr("y", -boxH/2 + 11)
+                .text(d => `${d.data.id} : ${d.data.asil || 'QM'}`);
+
+            node.each(function(d) {
+                const el = d3.select(this);
+                const lines = wrapText(d.data.label, boxW - 15, 5.5);
+                lines.slice(0, 4).forEach((line, i) => {
+                    el.append("text")
+                      .attr("class", "node-desc-text")
+                      .attr("text-anchor", "start")
+                      .attr("x", -boxW/2 + 5)
+                      .attr("y", -boxH/2 + headerH + 12 + (i * 11))
+                      .text(line);
+                });
+            });
+
+            // Cutset Visualization (Wrapped and Left Aligned)
+            node.each(function(d) {
+                if (d.data.cutsetId) {
+                    const el = d3.select(this);
+                    const lineY = -boxH/2 - 60;
+                    const startX = -boxW/2 - 40;
+                    
+                    // The line crosses from above left to just past the center vertical branch
+                    el.append("line")
+                      .attr("class", "cutset-line")
+                      .attr("x1", startX)
+                      .attr("y1", lineY)
+                      .attr("x2", 10)
+                      .attr("y2", lineY);
+                    
+                    const fullText = `${d.data.cutsetId}: ${d.data.cutsetDesc}`;
+                    const wrapLimit = Math.abs(startX) + 5; 
+                    const cutsetLines = wrapText(fullText, wrapLimit, 4.8);
+
+                    cutsetLines.forEach((line, i) => {
+                        el.append("text")
+                          .attr("class", "cutset-text")
+                          .attr("text-anchor", "start")
+                          .attr("x", startX + 2)
+                          .attr("y", lineY + 10 + (i * 9))
+                          .text(line);
+                    });
+                }
+            });
+
+            const transform = d3.zoomIdentity.translate(width/2, 100).scale(0.7);
+            svg.transition().duration(500).call(d3.zoom().transform, transform);
         }
     </script>
 </body>
