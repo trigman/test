@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Professional</title>
+    <title>FTA Professional v1.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -26,7 +26,7 @@
 
     <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
         <div class="flex items-center space-x-4">
-            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO</span>
+            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.2</span>
             <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
         </div>
         
@@ -141,6 +141,7 @@
                     const header = values[0]; 
                     let filteredValues = [header]; 
                     
+                    // Column 0 is expected to be "FTA ID"
                     const dataRows = values.slice(1);
                     const filteredData = dataRows.filter(row => 
                         // Check if the FTA ID column (index 0) matches the target ID (case-insensitive and trimmed)
@@ -150,7 +151,7 @@
                     filteredValues = filteredValues.concat(filteredData);
                     
                     console.log(`DEBUG: Filtered data by FTA ID '${targetFtaId}'. Total rows to render: ${filteredValues.length}`);
-                    console.log("DEBUG: First 3 rows of filtered data (check for whitespace/empty parent ID on root):", filteredValues.slice(0, 3)); 
+                    console.log("DEBUG: First 3 rows of filtered data (check for column order/content):", filteredValues.slice(0, 3)); 
 
                     if (filteredValues.length <= 1) {
                         updateStatus(`No Data for ID: ${targetFtaId}`, "bg-red-500 text-white");
@@ -214,25 +215,45 @@
 
             svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
+            // --- Robust Column Mapping by Header Name ---
+            const header = rows[0].map(h => String(h).trim()); // Trim headers for matching
+            const indices = {
+                id: header.findIndex(h => h.includes("Event ID")),
+                parentId: header.findIndex(h => h.includes("Parent")),
+                type: header.findIndex(h => h.includes("Type")),
+                label: header.findIndex(h => h.includes("Label")),
+                asil: header.findIndex(h => h.includes("ASIL")),
+                cutsetId: header.findIndex(h => h.includes("Cutset ID")),
+                cutsetDesc: header.findIndex(h => h.includes("Cutset Desc")),
+            };
+            
+            console.log("DEBUG: Column Indices Found:", indices);
+
+            if (indices.id === -1 || indices.parentId === -1 || indices.type === -1 || indices.label === -1) {
+                console.error("ERROR: One or more essential columns (Event ID, Parent, Type, Label) not found in the header row. Check your header spelling.");
+                updateStatus("Missing Columns", "bg-red-600 text-white");
+                return;
+            }
+
             const data = rows.slice(1).map(r => {
-                const parentIdRaw = String(r[2] || "").trim();
+                const parentIdRaw = String(r[indices.parentId] || "").trim();
                 
-                // CRITICAL FIX: Explicitly use null for the root node's parent ID 
-                // to avoid issues with whitespace/invisible characters from Excel.
+                // CRITICAL FIX: Use null for the root node's parent ID to prevent D3 errors
                 const parentId = parentIdRaw === "" ? null : parentIdRaw;
                 
+                // Use the dynamically determined indices to access the correct column data
                 return { 
-                    id: String(r[1]), 
+                    id: String(r[indices.id] || ""), 
                     parentId: parentId,
-                    type: (r[3] || 'BASIC').toUpperCase(), 
-                    label: String(r[4] || r[1]),
-                    asil: String(r[5] || ""),
-                    cutsetId: String(r[6] || ""),
-                    cutsetDesc: String(r[7] || "")
+                    type: (String(r[indices.type] || 'BASIC')).toUpperCase(), 
+                    label: String(r[indices.label] || r[indices.id]),
+                    asil: String(r[indices.asil] || ""),
+                    cutsetId: String(r[indices.cutsetId] || ""),
+                    cutsetDesc: String(r[indices.cutsetDesc] || "")
                 };
             });
             
-            console.log("DEBUG: Data array ready for d3.stratify(). Root parentId check:", data[0]);
+            console.log("DEBUG: Data array ready for d3.stratify(). Root parentId check (should be null):", data[0].parentId);
 
             // D3 Stratify will now correctly identify the root node via parentId: null
             const root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(data);
