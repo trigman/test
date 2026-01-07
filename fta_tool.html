@@ -19,36 +19,48 @@
         .gate-text { font-size: 8px; font-weight: 900; fill: #2d3748; pointer-events: none; }
         .cutset-line { stroke: #e53e3e; stroke-width: 1.5px; stroke-dasharray: 3,3; }
         .cutset-text { fill: #c53030; font-size: 8px; font-weight: bold; }
-        #canvas-container { background: #edf2f7; height: calc(100vh - 64px); width: 100%; }
+        /* Adjusted height for the new two-row nav structure (approx 92px total height) */
+        #canvas-container { background: #edf2f7; height: calc(100vh - 92px); width: 100%; }
     </style>
 </head>
 <body class="flex flex-col">
 
-    <nav class="h-16 bg-gray-900 text-white flex items-center justify-between px-6 shadow-xl z-50">
-        <div class="flex items-center space-x-4">
-            <span class="font-black text-xl tracking-tighter text-blue-400">FTA PRO v1.9</span>
-            <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-500 uppercase tracking-widest">Standalone</div>
+    <!-- NAVIGATION BAR: Updated to two rows -->
+    <nav class="bg-gray-900 text-white flex flex-col px-6 shadow-xl z-50 py-3">
+        
+        <!-- ROW 1: Title, Status, Sample Button -->
+        <div class="flex items-center justify-between h-8 mb-2">
+            <div class="flex items-center space-x-4">
+                <!-- Title: Smaller (text-lg) -->
+                <span class="font-black text-lg tracking-tighter text-blue-400">FTA PRO v1.9</span>
+                <!-- Status Pill: Now using text-[6px] and px-0.5 for further size reduction -->
+                <div id="status-pill" class="text-xs px-0.5 py-0 rounded font-bold bg-gray-800 text-gray-500">Standalone</div>
+            </div>
+            
+            <!-- Sample Button (Moved to Row 1) -->
+            <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded transition border border-gray-500">
+                Sample
+            </button>
         </div>
         
-        <div class="flex items-center space-x-4">
+        <!-- ROW 2: Sync Button and Dropdowns -->
+        <div class="flex items-center space-x-4 h-8">
+            <!-- Sync Button -->
+            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">
+                Sync Excel
+            </button>
+            
             <!-- Table Selection Dropdown -->
             <label for="table-select" class="text-xs font-medium text-gray-300">Data Table:</label>
-            <select id="table-select" class="bg-gray-800 text-white text-sm py-1.5 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-48">
+            <select id="table-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-48">
                 <option value="">-- No Tables Loaded --</option>
             </select>
 
-            <!-- FTA ID Selection Dropdown (NEW) -->
+            <!-- FTA ID Selection Dropdown -->
             <label for="fta-id-select" class="text-xs font-medium text-gray-300">FTA ID:</label>
-            <select id="fta-id-select" class="bg-gray-800 text-white text-sm py-1.5 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-32">
+            <select id="fta-id-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded cursor-pointer border border-gray-700 focus:ring-blue-500 focus:border-blue-500 w-32">
                 <option value="">-- Loading --</option>
             </select>
-
-            <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded transition border border-gray-500">
-                Sample
-            </button>
-            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded transition shadow-lg">
-                Sync Excel
-            </button>
         </div>
     </nav>
 
@@ -68,7 +80,7 @@
             ["FFTA1", "SG1", "Violation of SG1: Prevent unintended acceleration above driver request.", "ASIL D", "E1,E2", "", "1e-08", "", ""],
             ["FFTA1", "E1", "e-stop fails", "ASIL C (D)", "", "", "1e-07", "FSR1.1", "The e-stop (safety mechanism independent from VCU) shall return the vehicle to the safe state of zero torque"],
             ["FFTA1", "E2", "MCU receives torque request unintended by driver", "ASIL A(D)", "", "E3,E4,E5", "1e-05", "FSR1.2", "MCU shall not provide torque if not commanded by driver"],
-            ["FFTA1", "E3", "implausible or invalid accelerator pedal signal", "ASIL A(D)", "", "", "2e-06", "FSR1.3", "The VCU shall detect implausible or invalid accelerator pedal position input within the Fault Tolerant Time Interval (FTTI)."],
+            ["FFTA1", "E3", "implausible or invalid accelerator pedal signal", "ASIL A(D)", "", "", "2e-06", "FSR1.3", "The VCU shall detect implausible or invalid accelerator pedal position input within the Fault Tolerant Time Interval (FTTI).."],
             ["FFTA1", "E4", "brake interlock fails", "ASIL A(D)", "", "", "5e-06", "FSR1.4", "VCU commands 0 torque when brake pedal applied"],
             ["FFTA1", "E5", "loss or corruption of communication results in unintended torque command", "ASIL A(D)", "", "", "3e-06", "FSR1.5", "MCU loss of CAN signal triggers timeout to 0 torque safe state within FTTI"],
             // FFTA2
@@ -336,7 +348,8 @@
         function updateStatus(text, classes) {
             const pill = document.getElementById('status-pill');
             pill.innerText = text;
-            pill.className = `text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest ${classes}`;
+            // Updated to text-[6px] and px-0.5
+            pill.className = `text-[6px] px-0.5 py-0 rounded font-bold uppercase tracking-widest ${classes}`;
         }
 
         function getAsilColor(asil) {
@@ -538,7 +551,7 @@
             const borderRadius = 6; 
             
             // Define layout properties
-            // FIX 1: Increased vertical separation for longer segments
+            // CONSTANT: LAYERING_SEP = 100
             const LAYERING_SEP = 100;
             const treeLayout = d3.tree().nodeSize([250, LAYERING_SEP]); // [Horizontal spacing (X), Vertical spacing (Y)]
             treeLayout(root);
