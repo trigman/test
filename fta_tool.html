@@ -11,7 +11,7 @@
         .link { fill: none; stroke: #4a5568; stroke-width: 2px; shape-rendering: crispEdges; }
         .node-box { fill: white; stroke: #2d3748; stroke-width: 1.5px; }
         .node-header { stroke: #2d3748; stroke-width: 1px; }
-        .node-id-text { fill: black; font-size: 10px; font-weight: bold; text-transform: uppercase; } /* FILL CHANGED TO BLACK */
+        .node-id-text { fill: black; font-size: 10px; font-weight: bold; text-transform: uppercase; } 
         .node-desc-text { fill: #2d3748; font-size: 9px; font-weight: 500; }
         .gate-and { fill: #feb2b2; stroke: #c53030; stroke-width: 1.5px; }
         .gate-or { fill: #bee3f8; stroke: #2b6cb0; stroke-width: 1.5px; }
@@ -49,6 +49,7 @@
     </main>
 
     <script>
+        // Sample data for fallback and structure reference
         const sampleRows = [
             ["FTA ID", "Event ID", "Parent", "Type", "Label", "ASIL", "Cutset ID", "Cutset Desc"],
             ["FFTA1", "SG1", "", "AND", "Violation of SG1: Prevent unintended acceleration above driver request.", "ASIL D", "", ""],
@@ -105,16 +106,16 @@
                 await Excel.run(async (context) => {
                     const worksheet = context.workbook.worksheets.getActiveWorksheet();
                     let rangeToRead;
-                    const targetFtaId = "FFTA1"; 
+                    const targetFtaId = "FFTA1"; // Using sample ID for current debug
 
                     // 1. Attempt to find and use a Table named 'FTA_Data'
                     let table = worksheet.tables.getItemOrNullObject("FTA_Data");
-                    table.load("name");
+                    table.load("name, range");
                     await context.sync();
 
                     if (!table.isNullObject) {
-                        // If the table exists, read its entire range (including headers)
-                        rangeToRead = table.getRange(); 
+                        // Read the entire table range (including headers)
+                        rangeToRead = table.range; 
                         console.log(`DEBUG: Found and reading data from table: ${table.name}`);
                         updateStatus(`Reading Table: ${table.name}`, "bg-green-500 text-white");
                     } else {
@@ -137,20 +138,20 @@
                     
                     console.log(`DEBUG: Successfully read ${values.length} rows from Excel.`);
                     
-                    // The first row is assumed to be the header
                     const header = values[0]; 
-                    let filteredValues = [header]; // Always include header
+                    let filteredValues = [header]; 
                     
-                    // Filter data rows by the FTA ID in the first column (index 0)
                     const dataRows = values.slice(1);
                     const filteredData = dataRows.filter(row => 
-                        row.length > 0 && String(row[0]).toUpperCase() === targetFtaId.toUpperCase()
+                        // Check if the FTA ID column (index 0) matches the target ID (case-insensitive and trimmed)
+                        row.length > 0 && String(row[0] || "").trim().toUpperCase() === targetFtaId.toUpperCase()
                     );
                     
                     filteredValues = filteredValues.concat(filteredData);
-
-                    console.log(`DEBUG: Filtered data by FTA ID '${targetFtaId}'. Total rows to render: ${filteredValues.length}`);
                     
+                    console.log(`DEBUG: Filtered data by FTA ID '${targetFtaId}'. Total rows to render: ${filteredValues.length}`);
+                    console.log("DEBUG: First 3 rows of filtered data (check for whitespace/empty parent ID on root):", filteredValues.slice(0, 3)); 
+
                     if (filteredValues.length <= 1) {
                         updateStatus(`No Data for ID: ${targetFtaId}`, "bg-red-500 text-white");
                         console.warn(`WARNING: No valid data rows found for FTA ID '${targetFtaId}'.`);
@@ -213,16 +214,27 @@
 
             svg.call(d3.zoom().scaleExtent([0.1, 2]).on("zoom", (e) => g.attr("transform", e.transform)));
 
-            const data = rows.slice(1).map(r => ({ 
-                id: String(r[1]), 
-                parentId: String(r[2]), 
-                type: (r[3] || 'BASIC').toUpperCase(), 
-                label: String(r[4] || r[1]),
-                asil: String(r[5] || ""),
-                cutsetId: String(r[6] || ""),
-                cutsetDesc: String(r[7] || "")
-            }));
+            const data = rows.slice(1).map(r => {
+                const parentIdRaw = String(r[2] || "").trim();
+                
+                // CRITICAL FIX: Explicitly use null for the root node's parent ID 
+                // to avoid issues with whitespace/invisible characters from Excel.
+                const parentId = parentIdRaw === "" ? null : parentIdRaw;
+                
+                return { 
+                    id: String(r[1]), 
+                    parentId: parentId,
+                    type: (r[3] || 'BASIC').toUpperCase(), 
+                    label: String(r[4] || r[1]),
+                    asil: String(r[5] || ""),
+                    cutsetId: String(r[6] || ""),
+                    cutsetDesc: String(r[7] || "")
+                };
+            });
             
+            console.log("DEBUG: Data array ready for d3.stratify(). Root parentId check:", data[0]);
+
+            // D3 Stratify will now correctly identify the root node via parentId: null
             const root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(data);
             const treeLayout = d3.tree().nodeSize([250, 220]);
             treeLayout(root);
@@ -244,7 +256,6 @@
 
             // Logic Gates Drawing (Only if has children)
             node.each(function(d) {
-                // Initialize element selection first
                 const el = d3.select(this);
 
                 // Only draw gates for non-leaf nodes
@@ -253,11 +264,9 @@
                 }
 
                 const type = d.data.type;
-                // Move the gates slightly further down to give space between the box and the gate
                 const gateYOffset = 65; 
 
                 if (type === 'AND') {
-                    // AND gate symbol path
                     el.append("path")
                       .attr("class", "gate-and")
                       .attr("d", "M-15,15 L15,15 L15,0 A15,15 0 0,0 -15,0 Z")
@@ -268,7 +277,6 @@
                       .attr("y", gateYOffset + 3)
                       .text("AND");
                 } else if (type === 'OR') {
-                    // OR gate symbol path (using quadratic Bezier curves for the arc)
                     el.append("path")
                       .attr("class", "gate-or")
                       .attr("d", "M-15,15 Q-15,-10 0,-15 Q15,-10 15,15 Q0,7 -15,15 Z")
@@ -285,7 +293,7 @@
             const boxW = 160;
             const boxH = 65;
             const headerH = 15;
-            const borderRadius = 6; // Value for rounded corners
+            const borderRadius = 6; 
 
             // Draw the main event box background
             node.append("rect")
@@ -294,8 +302,8 @@
                 .attr("height", boxH)
                 .attr("x", -boxW/2)
                 .attr("y", -boxH/2)
-                .attr("rx", borderRadius) // Apply rounding
-                .attr("ry", borderRadius); // Apply rounding
+                .attr("rx", borderRadius) 
+                .attr("ry", borderRadius); 
 
             // Draw the colored ASIL header
             node.append("rect")
