@@ -15,7 +15,6 @@
         .desc-box { font-size: 9px; line-height: 1.3; color: #334155; background: white; border: 1px solid #e2e8f0; border-top: none; padding: 8px; border-radius: 0 0 4px 4px; width: 220px; white-space: normal; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #canvas-container { background: #f1f5f9; height: calc(100vh - 92px); width: 100%; position: relative; }
         
-        /* Minimalist Corner Controls */
         #controls-corner {
             position: absolute;
             bottom: 20px;
@@ -32,7 +31,7 @@
 
         .slider-v { 
             grid-area: v-slider;
-            writing-mode: bt-lr; /* Vertical orientation */
+            writing-mode: bt-lr;
             appearance: slider-vertical;
             width: 8px;
             height: 120px;
@@ -72,29 +71,28 @@
         <div class="flex items-center justify-between h-8 mb-2">
             <div class="flex items-center space-x-4">
                 <span class="font-black text-lg tracking-tighter text-green-400">REQ TRACING</span>
-                <div id="status-pill" class="text-[6px] px-1 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
+                <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
             </div>
             <div class="flex space-x-2">
-                <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-bold py-1 px-3 rounded border border-gray-500">Sample</button>
+                <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-bold py-1 px-3 rounded border border-gray-500 transition">Sample</button>
             </div>
         </div>
         <div class="flex items-center space-x-4 h-8">
             <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">Sync Excel</button>
             <label for="table-select" class="text-xs font-medium text-gray-400">Table:</label>
-            <select id="table-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded border border-gray-700 w-64"><option value="">-- No Tables --</option></select>
+            <select id="table-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded border border-gray-700 w-64 focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">-- No Tables --</option>
+            </select>
         </div>
     </nav>
 
     <main id="canvas-container">
         <svg id="main-svg" class="w-full h-full"></svg>
         
-        <!-- Minimalist Corner UI -->
         <div id="controls-corner">
             <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="100" title="Vertical Spacing">
             <button id="btn-toggle-all" title="Toggle All Descriptions">
-                <!-- Maximize Icon -->
                 <svg id="icon-max" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                <!-- Minimize Icon (Hidden by default) -->
                 <svg id="icon-min" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L4 4m0 0v4m0-4h4m12 5l-5-5m5 5h-4m0-4v4m-5 11l5-5m-5 5v-4m0 4h4m-11 0l5-5m-5 5h-4m0-4v4"></path></svg>
             </button>
             <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="320" title="Horizontal Spacing">
@@ -140,6 +138,10 @@
         
         let spacingH = 320;
         let spacingV = 100;
+        
+        // Excel State
+        let officeLoaded = false;
+        let tablesLoaded = false;
 
         const colors = {
             asil: { "QM": "#C0E6F5", "ASIL A": "#4D93D9", "ASIL B": "#9966FF", "ASIL C": "#D86DCD", "ASIL D": "#FF3399" },
@@ -155,13 +157,98 @@
             svg.call(zoomHandler);
 
             document.getElementById('btn-sample').onclick = () => loadData(sampleData);
+            document.getElementById('btn-sync').onclick = handleExcelSync;
             document.getElementById('btn-toggle-all').onclick = toggleAll;
+            document.getElementById('table-select').onchange = performExcelRead;
             
             document.getElementById('spacing-h').oninput = (e) => { spacingH = +e.target.value; renderTraceMap(false); };
             document.getElementById('spacing-v').oninput = (e) => { spacingV = +e.target.value; renderTraceMap(false); };
 
             loadData(sampleData);
         };
+
+        // --- Excel Integration Logic ---
+
+        async function handleExcelSync() {
+            if (!officeLoaded) {
+                updateStatus("Loading API...", "bg-blue-900 text-blue-200");
+                const script = document.createElement('script');
+                script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
+                script.onload = () => {
+                    Office.onReady(async (info) => {
+                        officeLoaded = true;
+                        updateStatus("API Ready", "bg-green-900 text-green-300");
+                        await populateTableDropdown();
+                        performExcelRead();
+                    });
+                };
+                script.onerror = () => updateStatus("API Error", "bg-red-900 text-red-200");
+                document.head.appendChild(script);
+            } else {
+                if (!tablesLoaded) await populateTableDropdown();
+                performExcelRead();
+            }
+        }
+
+        async function populateTableDropdown() {
+            const dropdown = document.getElementById('table-select');
+            dropdown.innerHTML = '<option value="">-- Loading --</option>';
+            try {
+                await Excel.run(async (context) => {
+                    const worksheet = context.workbook.worksheets.getActiveWorksheet();
+                    const tables = worksheet.tables.load("name");
+                    await context.sync();
+                    dropdown.innerHTML = '';
+                    if (tables.items.length === 0) {
+                        dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
+                        tablesLoaded = true;
+                        return;
+                    }
+                    tables.items.forEach(table => {
+                        const option = document.createElement('option');
+                        option.value = table.name;
+                        option.textContent = table.name;
+                        dropdown.appendChild(option);
+                    });
+                    // Select first table by default
+                    dropdown.selectedIndex = 0;
+                    tablesLoaded = true;
+                    updateStatus("Tables Loaded", "bg-green-900 text-green-300");
+                });
+            } catch (error) {
+                dropdown.innerHTML = '<option value="">-- Error --</option>';
+                updateStatus("Discovery Error", "bg-red-900 text-red-200");
+            }
+        }
+
+        async function performExcelRead() {
+            const selectedTableName = document.getElementById('table-select').value;
+            if (!selectedTableName) return;
+
+            updateStatus("Reading...", "bg-yellow-900 text-yellow-200");
+            try {
+                await Excel.run(async (context) => {
+                    const table = context.workbook.worksheets.getActiveWorksheet().tables.getItem(selectedTableName);
+                    const headerRange = table.getHeaderRowRange().load("values");
+                    const dataRange = table.getDataBodyRange().load("values");
+                    await context.sync();
+                    
+                    const rows = [headerRange.values[0], ...dataRange.values];
+                    loadData(rows);
+                    updateStatus("Synced", "bg-green-900 text-green-300");
+                });
+            } catch (error) {
+                updateStatus("Read Error", "bg-red-900 text-red-200");
+            }
+        }
+
+        function updateStatus(text, classes) {
+            const pill = document.getElementById('status-pill');
+            pill.innerText = text;
+            pill.className = `text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-gray-700 font-mono ${classes}`;
+        }
+
+        // --- Visualization Logic ---
 
         function toggleAll() {
             allExpanded = !allExpanded;
@@ -203,19 +290,21 @@
             
             g.selectAll("*").remove();
 
-            const header = fullData[0].map(h => h.toLowerCase());
+            const header = fullData[0].map(h => String(h).toLowerCase());
             const idxId = header.indexOf("id");
             const idxDesc = header.indexOf("description");
             const idxAsil = header.indexOf("asil");
             const idxSrc = header.indexOf("source id");
             const idxType = header.indexOf("type");
 
+            if (idxId === -1) return;
+
             const data = fullData.slice(1).map(r => ({
-                id: String(r[idxId]),
-                desc: String(r[idxDesc]),
-                asil: String(r[idxAsil]),
+                id: String(r[idxId] || ""),
+                desc: String(r[idxDesc] || ""),
+                asil: String(r[idxAsil] || ""),
                 parentId: String(r[idxSrc] || "").trim(),
-                type: String(r[idxType])
+                type: String(r[idxType] || "")
             })).filter(d => d.id);
 
             const idMap = new Map(data.map(d => [d.id, d]));
