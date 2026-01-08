@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp 
+    xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+    xsi:type="TaskPaneApp">
+  
+  <Id>d7c4a1b2-3e4f-5b6d-7a8c-9e0f1a2b3c4d</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>FTA Solutions</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="FTA Live Visualizer" />
+  <Description DefaultValue="Real-time Fault Tree Analysis diagram generator." />
+  
+  <IconUrl DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/auth/Office-Add-in-Microsoft-Graph-React/assets/icon-32.png" />
+  
+  <Hosts>
+    <Host Name="Workbook" />
+  </Hosts>
+
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://trigman.github.io/test/fta_tool.html" />
+  </DefaultSettings>
+  
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>
