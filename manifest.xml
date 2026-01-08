@@ -2,17 +2,20 @@
 <OfficeApp 
     xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" 
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+    xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" 
+    xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" 
     xsi:type="TaskPaneApp">
   
-  <Id>d7c4a1b2-3e4f-5b6d-7a8c-9e0f1a2b3c4d</Id>
-  <Version>1.0.0.0</Version>
-  <ProviderName>FTA Solutions</ProviderName>
+  <Id>b2a1c4d5-7e3f-4a92-9a6d-7b2c8e1a4f0f</Id>
+  <Version>1.1.0.1</Version>
+  <ProviderName>Functional Safety Tool Suite</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="FTA Live Visualizer" />
-  <Description DefaultValue="Real-time Fault Tree Analysis diagram generator." />
+  <DisplayName DefaultValue="Functional Safety Tool Suite" />
+  <Description DefaultValue="Suite of tools for Functional Safety." />
   
   <IconUrl DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/auth/Office-Add-in-Microsoft-Graph-React/assets/icon-32.png" />
-  
+  <SupportUrl DefaultValue="https://www.google.com" />
+
   <Hosts>
     <Host Name="Workbook" />
   </Hosts>
@@ -22,4 +25,75 @@
   </DefaultSettings>
   
   <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <FunctionFile resid="Url.FTA" />
+          
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="TabFTA">
+              <Group id="Group.Tools">
+                <Label DefaultValue="Safety Tools" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+
+                <Control xsi:type="Button" id="Button.FTA">
+                  <Label DefaultValue="FTA" />
+                  <Supertip>
+                    <Title DefaultValue="Open FTA Visualizer" />
+                    <Description DefaultValue="View and edit the Fault Tree diagram." />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>Taskpane.FTA</TaskpaneId>
+                    <SourceLocation resid="Url.FTA" />
+                  </Action>
+                </Control>
+
+                <Control xsi:type="Button" id="Button.Tracing">
+                  <Label DefaultValue="Tracing" />
+                  <Supertip>
+                    <Title DefaultValue="Requirements Tracing" />
+                    <Description DefaultValue="Visualize and manage requirement traceability." />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>Taskpane.Tracing</TaskpaneId>
+                    <SourceLocation resid="Url.Tracing" />
+                  </Action>
+                </Control>
+
+              </Group>
+              <Label DefaultValue="FTA Tools" />
+            </CustomTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/auth/Office-Add-in-Microsoft-Graph-React/assets/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/auth/Office-Add-in-Microsoft-Graph-React/assets/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/auth/Office-Add-in-Microsoft-Graph-React/assets/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Url.FTA" DefaultValue="https://trigman.github.io/test/fta_tool.html" />
+        <bt:Url id="Url.Tracing" DefaultValue="https://trigman.github.io/test/tracing_tool.html" />
+      </bt:Urls>
+    </Resources>
+  </VersionOverrides>
 </OfficeApp>
