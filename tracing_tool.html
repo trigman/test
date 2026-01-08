@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Requirements Tracing Tool v1.1</title>
+    <title>Requirements Tracing Tool v1.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -70,7 +70,7 @@
     <nav class="bg-gray-900 text-white flex flex-col px-6 shadow-xl z-50 py-3">
         <div class="flex items-center justify-between h-8 mb-2">
             <div class="flex items-center space-x-4">
-                <span class="font-black text-lg tracking-tighter text-green-400">REQ TRACING v1.1</span>
+                <span class="font-black text-lg tracking-tighter text-blue-400">REQ TRACING v1.2</span>
                 <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
             </div>
             <div class="flex space-x-2">
@@ -78,7 +78,7 @@
             </div>
         </div>
         <div class="flex items-center space-x-4 h-8">
-            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">Sync Excel</button>
+            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">Sync Visible Data</button>
             <label for="table-select" class="text-xs font-medium text-gray-400">Table:</label>
             <select id="table-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded border border-gray-700 w-64 focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">-- No Tables --</option>
@@ -104,30 +104,8 @@
             ["ID", "Description", "ASIL", "Source ID", "Type"],
             ["SG1", "Prevent unintended acceleration above driver request.", "ASIL D", "", "SG"],
             ["SG2", "Prevent torque overshoot beyond safe limits", "ASIL B", "", "SG"],
-            ["SG3", "Ensure torque delivery when requested", "ASIL B", "", "SG"],
-            ["SG4", "Maintain acceptable torque response time", "ASIL B", "", "SG"],
-            ["SG5", "Prevent incorrect torque direction", "ASIL A", "", "SG"],
             ["HRA1.1", "Motor provides torque not requested by driver", "ASIL D", "SG1", "HARA"],
-            ["HRA1.2", "Accellerator pedal signal misread or corrupted", "ASIL D", "SG1", "HARA"],
-            ["HRA1.3", "Accelerator pedal stuck at high position", "ASIL D", "SG1", "HARA"],
-            ["HRA1.4", "CAN signal loss or corrupted between VCU and MCU", "ASIL D", "SG1", "HARA"],
-            ["HRA2", "Torque exceeds safe limits due to incorrect ESS or MCU input", "ASIL B", "SG2", "HARA"],
-            ["HRA3", "No torque output when driver requests acceleration", "ASIL B", "SG3", "HARA"],
-            ["HRA4", "Lag in torque delivery beyond acceptable timing", "ASIL B", "SG4", "HARA"],
-            ["HRA5.1", "Reverse torque applied when forward requested", "ASIL A", "SG5", "HARA"],
-            ["HRA5.2", "Erroneous regen torque request causes direction reversal", "ASIL A", "SG5", "HARA"],
-            ["FSR1.1", "The e-stop returns vehicle to safe state of zero torque", "ASIL C (D)", "SG1", "FR"],
-            ["FSR1.2", "MCU shall not provide torque if not commanded", "ASIL A (D)", "SG1", "FR"],
-            ["FSR1.3", "VCU detects implausible pedal input within FTTI.", "ASIL A (D)", "FSR1.2", "FR"],
-            ["FSR1.4", "VCU commands 0 torque when brake applied", "ASIL A (D)", "FSR1.2", "FR"],
-            ["FSR1.5", "MCU loss of CAN signal triggers timeout to 0 torque", "ASIL A (D)", "FSR1.3", "FR"],
-            ["FSR1.6", "VCU loss of MCU CAN signal triggers timeout to MCU enable pin within FTTI", "ASIL A (D)", "", "FR"],
-            ["FSR2", "MCU operates within safe torque limits", "ASIL B", "SG2", "FR"],
-            ["FSR2.1", "MCU operates within safe torque limits (internal)", "ASIL A (B)", "SG2", "FR"],
-            ["FSR2.2", "VCU supervises against excessive torque from MCU", "ASIL A (B)", "SG2", "FR"],
-            ["TSR1.1.1", "e-stop implemented using hardware only logic", "ASIL C (D)", "FSR1.1", "TR"],
-            ["TSR1.1.2", "e-stop implemented using fail safe NC to VBATT", "ASIL C (D)", "FSR1.1", "TR"],
-            ["TSR1.1.3", "e-stop hardware tolerant to EMI and voltage spikes", "ASIL C (D)", "FSR1.1", "TR"]
+            ["FSR1.1", "The e-stop returns vehicle to safe state of zero torque", "ASIL C (D)", "SG1", "FR"]
         ];
 
         let fullData = [];
@@ -139,7 +117,6 @@
         let spacingH = 320;
         let spacingV = 100;
         
-        // Excel State
         let officeLoaded = false;
         let tablesLoaded = false;
 
@@ -149,7 +126,7 @@
         };
 
         window.onload = () => {
-            console.log("REQ TRACING: Window loaded.");
+            console.log("REQ TRACING v1.2: Window loaded.");
             const svg = d3.select("#main-svg");
             zoomHandler = d3.zoom().on("zoom", (e) => {
                 currentTransform = e.transform;
@@ -168,53 +145,37 @@
             loadData(sampleData);
         };
 
-        // --- Excel Integration Logic ---
-
         async function handleExcelSync() {
-            console.log("REQ TRACING: Sync button clicked.");
+            console.log("REQ TRACING v1.2: Sync requested.");
             if (!officeLoaded) {
-                console.log("REQ TRACING: Office.js not loaded. Injecting script...");
                 updateStatus("Loading API...", "bg-blue-900 text-blue-200");
                 const script = document.createElement('script');
                 script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
                 script.onload = () => {
-                    console.log("REQ TRACING: Office.js script loaded to DOM.");
                     Office.onReady(async (info) => {
-                        console.log("REQ TRACING: Office onReady initialized.", info);
                         officeLoaded = true;
                         updateStatus("API Ready", "bg-green-900 text-green-300");
                         await populateTableDropdown();
                         performExcelRead();
                     });
                 };
-                script.onerror = () => {
-                    console.error("REQ TRACING: Failed to load Office.js from Microsoft CDN.");
-                    updateStatus("API Error", "bg-red-900 text-red-200");
-                };
                 document.head.appendChild(script);
             } else {
-                console.log("REQ TRACING: Office already loaded. Re-discovering tables.");
-                if (!tablesLoaded) await populateTableDropdown();
                 performExcelRead();
             }
         }
 
         async function populateTableDropdown() {
-            console.log("REQ TRACING: Discovery started...");
             const dropdown = document.getElementById('table-select');
-            dropdown.innerHTML = '<option value="">-- Loading --</option>';
             try {
                 await Excel.run(async (context) => {
                     const worksheet = context.workbook.worksheets.getActiveWorksheet();
                     const tables = worksheet.tables.load("name");
                     await context.sync();
                     
-                    console.log("REQ TRACING: Tables found in sheet:", tables.items.map(t => t.name));
                     dropdown.innerHTML = '';
                     if (tables.items.length === 0) {
-                        console.warn("REQ TRACING: No Excel tables found in the active worksheet.");
                         dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
-                        tablesLoaded = true;
                         return;
                     }
                     tables.items.forEach(table => {
@@ -223,41 +184,42 @@
                         option.textContent = table.name;
                         dropdown.appendChild(option);
                     });
-                    
                     dropdown.selectedIndex = 0;
                     tablesLoaded = true;
-                    updateStatus("Tables Loaded", "bg-green-900 text-green-300");
                 });
             } catch (error) {
-                console.error("REQ TRACING: populateTableDropdown Error:", error);
-                dropdown.innerHTML = '<option value="">-- Error --</option>';
-                updateStatus("Discovery Error", "bg-red-900 text-red-200");
+                console.error("Discovery Error:", error);
             }
         }
 
         async function performExcelRead() {
             const selectedTableName = document.getElementById('table-select').value;
-            console.log("REQ TRACING: Attempting to read table:", selectedTableName);
             if (!selectedTableName) return;
 
-            updateStatus("Reading...", "bg-yellow-900 text-yellow-200");
+            updateStatus("Reading Visible...", "bg-yellow-900 text-yellow-200");
             try {
                 await Excel.run(async (context) => {
                     const table = context.workbook.worksheets.getActiveWorksheet().tables.getItem(selectedTableName);
+                    
+                    // Fetch headers
                     const headerRange = table.getHeaderRowRange().load("values");
-                    const dataRange = table.getDataBodyRange().load("values");
+                    
+                    // Fetch visible rows only
+                    // We use getVisibleView() on the body range
+                    const visibleBody = table.getDataBodyRange().getVisibleView().load("values");
+                    
                     await context.sync();
                     
-                    console.log("REQ TRACING: Successfully read headers:", headerRange.values[0]);
-                    console.log(`REQ TRACING: Successfully read ${dataRange.values.length} data rows.`);
+                    console.log("REQ TRACING v1.2: Filtered sync successful.");
+                    console.log(`Visible Rows Found: ${visibleBody.values.length}`);
                     
-                    const rows = [headerRange.values[0], ...dataRange.values];
+                    const rows = [headerRange.values[0], ...visibleBody.values];
                     loadData(rows);
-                    updateStatus("Synced", "bg-green-900 text-green-300");
+                    updateStatus(`Synced (${visibleBody.values.length} rows)`, "bg-green-900 text-green-300");
                 });
             } catch (error) {
-                console.error("REQ TRACING: performExcelRead Error:", error);
-                updateStatus("Read Error", "bg-red-900 text-red-200");
+                console.error("Filtered Read Error:", error);
+                updateStatus("Sync Error", "bg-red-900 text-red-200");
             }
         }
 
@@ -267,13 +229,10 @@
             pill.className = `text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-gray-700 font-mono ${classes}`;
         }
 
-        // --- Visualization Logic ---
-
         function toggleAll() {
             allExpanded = !allExpanded;
             const iconMax = document.getElementById('icon-max');
             const iconMin = document.getElementById('icon-min');
-            
             if (allExpanded) {
                 fullData.slice(1).forEach(r => expandedNodes.add(String(r[0])));
                 iconMax.classList.add('hidden');
@@ -306,7 +265,6 @@
             const svg = d3.select("#main-svg");
             let g = svg.select("g");
             if (g.empty()) g = svg.append("g");
-            
             g.selectAll("*").remove();
 
             const header = fullData[0].map(h => String(h).toLowerCase());
@@ -316,10 +274,7 @@
             const idxSrc = header.indexOf("source id");
             const idxType = header.indexOf("type");
 
-            if (idxId === -1) {
-                console.error("REQ TRACING: Required column 'ID' not found in data.");
-                return;
-            }
+            if (idxId === -1) return;
 
             const data = fullData.slice(1).map(r => ({
                 id: String(r[idxId] || ""),
@@ -339,7 +294,7 @@
             try {
                 root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(forestData);
             } catch (err) {
-                console.error("REQ TRACING: Stratification failed. Check for circular refs or missing IDs.", err);
+                console.error("Trace Logic Error:", err);
                 return;
             }
 
@@ -374,30 +329,14 @@
             nodes.each(function(d) {
                 const el = d3.select(this);
                 const isExpanded = expandedNodes.has(d.id);
-                
                 const foreignObj = el.append("foreignObject")
-                    .attr("x", 0)
-                    .attr("y", -12)
-                    .attr("width", 250)
-                    .attr("height", isExpanded ? 200 : 30)
+                    .attr("x", 0).attr("y", -12).attr("width", 250).attr("height", isExpanded ? 200 : 30)
                     .style("overflow", "visible");
-
                 const div = foreignObj.append("xhtml:div").attr("class", "flex flex-col items-start");
                 const headerDiv = div.append("xhtml:div").attr("class", "flex shadow-md rounded-md overflow-hidden");
-                
-                headerDiv.append("xhtml:div")
-                    .attr("class", "req-header-id")
-                    .style("background-color", getTypeColor(d.data.type))
-                    .text(d.data.id);
-                
-                headerDiv.append("xhtml:div")
-                    .attr("class", "req-header-asil")
-                    .style("background-color", getAsilColor(d.data.asil))
-                    .text(d.data.asil || "QM");
-
-                if (isExpanded) {
-                    div.append("xhtml:div").attr("class", "desc-box").text(d.data.desc || "---");
-                }
+                headerDiv.append("xhtml:div").attr("class", "req-header-id").style("background-color", getTypeColor(d.data.type)).text(d.data.id);
+                headerDiv.append("xhtml:div").attr("class", "req-header-asil").style("background-color", getAsilColor(d.data.asil)).text(d.data.asil || "QM");
+                if (isExpanded) div.append("xhtml:div").attr("class", "desc-box").text(d.data.desc || "---");
             });
 
             if (resetZoom) {
