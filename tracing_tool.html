@@ -161,34 +161,45 @@
                 };
                 document.head.appendChild(script);
             } else {
+                if (!tablesLoaded) await populateTableDropdown();
                 performExcelRead();
             }
         }
 
         async function populateTableDropdown() {
             const dropdown = document.getElementById('table-select');
+            updateStatus("Scanning Workbook...", "bg-blue-800 text-white");
             try {
                 await Excel.run(async (context) => {
-                    const worksheet = context.workbook.worksheets.getActiveWorksheet();
-                    const tables = worksheet.tables.load("name");
+                    // Search entire workbook
+                    const tables = context.workbook.tables.load("name");
                     await context.sync();
                     
                     dropdown.innerHTML = '';
                     if (tables.items.length === 0) {
                         dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
+                        updateStatus("No Tables Found", "bg-yellow-600 text-white");
                         return;
                     }
+
                     tables.items.forEach(table => {
                         const option = document.createElement('option');
                         option.value = table.name;
                         option.textContent = table.name;
                         dropdown.appendChild(option);
                     });
-                    dropdown.selectedIndex = 0;
+
+                    // Set default to "Elements" if it exists
+                    const defaultTable = tables.items.find(t => t.name.toUpperCase() === "ELEMENTS") || tables.items[0];
+                    if (defaultTable) {
+                        dropdown.value = defaultTable.name;
+                        updateStatus(`Tables Ready`, "bg-green-800 text-white");
+                    }
                     tablesLoaded = true;
                 });
             } catch (error) {
                 console.error("Discovery Error:", error);
+                updateStatus("Discovery Error", "bg-red-900 text-white");
             }
         }
 
@@ -199,19 +210,18 @@
             updateStatus("Reading Visible...", "bg-yellow-900 text-yellow-200");
             try {
                 await Excel.run(async (context) => {
-                    const table = context.workbook.worksheets.getActiveWorksheet().tables.getItem(selectedTableName);
+                    // Find table anywhere in the workbook
+                    const table = context.workbook.tables.getItem(selectedTableName);
                     
                     // Fetch headers
                     const headerRange = table.getHeaderRowRange().load("values");
                     
                     // Fetch visible rows only
-                    // We use getVisibleView() on the body range
                     const visibleBody = table.getDataBodyRange().getVisibleView().load("values");
                     
                     await context.sync();
                     
                     console.log("REQ TRACING v1.2: Filtered sync successful.");
-                    console.log(`Visible Rows Found: ${visibleBody.values.length}`);
                     
                     const rows = [headerRange.values[0], ...visibleBody.values];
                     loadData(rows);
