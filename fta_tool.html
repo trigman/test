@@ -8,13 +8,13 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        .link { fill: none; stroke: #4a5568; stroke-width: 2px; shape-rendering: crispEdges; }
-        .node-box { fill: white; stroke: #2d3748; stroke-width: 1.5px; }
-        .node-header { stroke: #2d3748; stroke-width: 1px; }
-        .node-id-text { fill: black; font-size: 10px; font-weight: bold; text-transform: uppercase; } 
+        .link { fill: none; stroke: #94a3b8; stroke-width: 2px; shape-rendering: crispEdges; }
+        .node-box { fill: white; stroke: #2d3748; stroke-width: 0px; filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));}
+        .node-header { stroke: #2d3748; stroke-width: 0px; filter: drop-shadow(0px 2px 0px rgba(0, 0, 0, 0.3)); }
+        .node-id-text { fill: white; font-size: 10px; font-weight: bold; text-transform: uppercase; } 
         .node-desc-text { fill: #2d3748; font-size: 9px; font-weight: 500; }
-        .gate-and { fill: #feb2b2; stroke: #c53030; stroke-width: 1.5px; }
-        .gate-or { fill: #bee3f8; stroke: #2b6cb0; stroke-width: 1.5px; }
+        .gate-and { fill: #feb2b2; stroke: #ef9191; stroke-width: 1.5px; filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2)); }
+        .gate-or { fill: #bee3f8; stroke: #8cc4ff; stroke-width: 1.5px;filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2)); }
         .gate-basic { fill: #e2e8f0; stroke: #4a5568; stroke-width: 1.5px; }
         .gate-text { font-size: 8px; font-weight: 900; fill: #2d3748; pointer-events: none; }
         .cutset-line { stroke: #e53e3e; stroke-width: 1.5px; stroke-dasharray: 3,3; }
@@ -548,7 +548,7 @@
             const boxW = 160;
             const boxH = 65;
             const headerH = 15;
-            const borderRadius = 6; 
+            const borderRadius = 4; 
             
             // Define layout properties
             // CONSTANT: LAYERING_SEP = 100
@@ -674,6 +674,8 @@
                 .attr("height", headerH)
                 .attr("x", -boxW/2)
                 .attr("y", -boxH/2)
+                .attr("rx", borderRadius) 
+                .attr("ry", borderRadius)
                 .attr("d", `M${-boxW/2 + borderRadius},${-boxH/2} L${boxW/2 - borderRadius},${-boxH/2} A${borderRadius},${borderRadius} 0 0 1 ${boxW/2},${-boxH/2 + borderRadius} L${boxW/2},${-boxH/2 + headerH} L${-boxW/2},${-boxH/2 + headerH} L${-boxW/2},${-boxH/2 + borderRadius} A${borderRadius},${borderRadius} 0 0 1 ${-boxW/2 + borderRadius},${-boxW/2} Z`)
                 .attr("fill", d => getAsilColor(d.data.asil));
 
