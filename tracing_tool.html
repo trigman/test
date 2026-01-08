@@ -90,12 +90,12 @@
         <svg id="main-svg" class="w-full h-full"></svg>
         
         <div id="controls-corner">
-            <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="100" title="Vertical Spacing">
+            <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="50" title="Vertical Spacing">
             <button id="btn-toggle-all" title="Toggle All Descriptions">
                 <svg id="icon-max" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                 <svg id="icon-min" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L4 4m0 0v4m0-4h4m12 5l-5-5m5 5h-4m0-4v4m-5 11l5-5m-5 5v-4m0 4h4m-11 0l5-5m-5 5h-4m0-4v4"></path></svg>
             </button>
-            <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="320" title="Horizontal Spacing">
+            <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="200" title="Horizontal Spacing">
         </div>
     </main>
 
@@ -114,8 +114,8 @@
         let zoomHandler;
         let currentTransform = d3.zoomIdentity.translate(80, 100).scale(0.8);
         
-        let spacingH = 320;
-        let spacingV = 100;
+        let spacingH = 250;
+        let spacingV = 30;
         
         let officeLoaded = false;
         let tablesLoaded = false;
