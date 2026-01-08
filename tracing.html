@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Requirements Tracing Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #f8fafc; }
+        .link { fill: none; stroke: #94a3b8; stroke-width: 1.5px; opacity: 0.4; transition: d 0.2s ease; }
+        .node-container { cursor: pointer; }
+        .req-header-id { font-size: 10px; font-weight: 800; color: white; padding: 2px 6px; border-radius: 4px 0 0 4px; display: flex; align-items: center; justify-content: center; min-width: 65px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); }
+        .req-header-asil { font-size: 10px; font-weight: 800; color: white; padding: 2px 6px; border-radius: 0 4px 4px 0; display: flex; align-items: center; justify-content: center; min-width: 55px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); }
+        .desc-box { font-size: 9px; line-height: 1.3; color: #334155; background: white; border: 1px solid #e2e8f0; border-top: none; padding: 8px; border-radius: 0 0 4px 4px; width: 220px; white-space: normal; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        #canvas-container { background: #f1f5f9; height: calc(100vh - 92px); width: 100%; position: relative; }
+        
+        /* Minimalist Corner Controls */
+        #controls-corner {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            display: grid;
+            grid-template-areas: 
+                "v-slider ."
+                "toggle h-slider";
+            align-items: center;
+            justify-items: center;
+            gap: 10px;
+        }
+
+        .slider-v { 
+            grid-area: v-slider;
+            writing-mode: bt-lr; /* Vertical orientation */
+            appearance: slider-vertical;
+            width: 8px;
+            height: 120px;
+            padding: 0 5px;
+        }
+
+        .slider-h { 
+            grid-area: h-slider;
+            width: 120px;
+            height: 8px;
+        }
+
+        #btn-toggle-all {
+            grid-area: toggle;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            color: #475569;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+
+        #btn-toggle-all:hover { background: #f1f5f9; color: #1e293b; }
+
+        input[type=range] { cursor: pointer; opacity: 0.6; transition: opacity 0.2s; }
+        input[type=range]:hover { opacity: 1; }
+    </style>
+</head>
+<body class="flex flex-col">
+    <nav class="bg-gray-900 text-white flex flex-col px-6 shadow-xl z-50 py-3">
+        <div class="flex items-center justify-between h-8 mb-2">
+            <div class="flex items-center space-x-4">
+                <span class="font-black text-lg tracking-tighter text-green-400">REQ TRACING</span>
+                <div id="status-pill" class="text-[6px] px-1 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
+            </div>
+            <div class="flex space-x-2">
+                <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-bold py-1 px-3 rounded border border-gray-500">Sample</button>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4 h-8">
+            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">Sync Excel</button>
+            <label for="table-select" class="text-xs font-medium text-gray-400">Table:</label>
+            <select id="table-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded border border-gray-700 w-64"><option value="">-- No Tables --</option></select>
+        </div>
+    </nav>
+
+    <main id="canvas-container">
+        <svg id="main-svg" class="w-full h-full"></svg>
+        
+        <!-- Minimalist Corner UI -->
+        <div id="controls-corner">
+            <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="100" title="Vertical Spacing">
+            <button id="btn-toggle-all" title="Toggle All Descriptions">
+                <!-- Maximize Icon -->
+                <svg id="icon-max" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                <!-- Minimize Icon (Hidden by default) -->
+                <svg id="icon-min" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L4 4m0 0v4m0-4h4m12 5l-5-5m5 5h-4m0-4v4m-5 11l5-5m-5 5v-4m0 4h4m-11 0l5-5m-5 5h-4m0-4v4"></path></svg>
+            </button>
+            <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="320" title="Horizontal Spacing">
+        </div>
+    </main>
+
+    <script>
+        const sampleData = [
+            ["ID", "Description", "ASIL", "Source ID", "Type"],
+            ["SG1", "Prevent unintended acceleration above driver request.", "ASIL D", "", "SG"],
+            ["SG2", "Prevent torque overshoot beyond safe limits", "ASIL B", "", "SG"],
+            ["SG3", "Ensure torque delivery when requested", "ASIL B", "", "SG"],
+            ["SG4", "Maintain acceptable torque response time", "ASIL B", "", "SG"],
+            ["SG5", "Prevent incorrect torque direction", "ASIL A", "", "SG"],
+            ["HRA1.1", "Motor provides torque not requested by driver", "ASIL D", "SG1", "HARA"],
+            ["HRA1.2", "Accellerator pedal signal misread or corrupted", "ASIL D", "SG1", "HARA"],
+            ["HRA1.3", "Accelerator pedal stuck at high position", "ASIL D", "SG1", "HARA"],
+            ["HRA1.4", "CAN signal loss or corrupted between VCU and MCU", "ASIL D", "SG1", "HARA"],
+            ["HRA2", "Torque exceeds safe limits due to incorrect ESS or MCU input", "ASIL B", "SG2", "HARA"],
+            ["HRA3", "No torque output when driver requests acceleration", "ASIL B", "SG3", "HARA"],
+            ["HRA4", "Lag in torque delivery beyond acceptable timing", "ASIL B", "SG4", "HARA"],
+            ["HRA5.1", "Reverse torque applied when forward requested", "ASIL A", "SG5", "HARA"],
+            ["HRA5.2", "Erroneous regen torque request causes direction reversal", "ASIL A", "SG5", "HARA"],
+            ["FSR1.1", "The e-stop returns vehicle to safe state of zero torque", "ASIL C (D)", "SG1", "FR"],
+            ["FSR1.2", "MCU shall not provide torque if not commanded", "ASIL A (D)", "SG1", "FR"],
+            ["FSR1.3", "VCU detects implausible pedal input within FTTI.", "ASIL A (D)", "FSR1.2", "FR"],
+            ["FSR1.4", "VCU commands 0 torque when brake applied", "ASIL A (D)", "FSR1.2", "FR"],
+            ["FSR1.5", "MCU loss of CAN signal triggers timeout to 0 torque", "ASIL A (D)", "FSR1.3", "FR"],
+            ["FSR1.6", "VCU loss of MCU CAN signal triggers timeout to MCU enable pin within FTTI", "ASIL A (D)", "", "FR"],
+            ["FSR2", "MCU operates within safe torque limits", "ASIL B", "SG2", "FR"],
+            ["FSR2.1", "MCU operates within safe torque limits (internal)", "ASIL A (B)", "SG2", "FR"],
+            ["FSR2.2", "VCU supervises against excessive torque from MCU", "ASIL A (B)", "SG2", "FR"],
+            ["TSR1.1.1", "e-stop implemented using hardware only logic", "ASIL C (D)", "FSR1.1", "TR"],
+            ["TSR1.1.2", "e-stop implemented using fail safe NC to VBATT", "ASIL C (D)", "FSR1.1", "TR"],
+            ["TSR1.1.3", "e-stop hardware tolerant to EMI and voltage spikes", "ASIL C (D)", "FSR1.1", "TR"]
+        ];
+
+        let fullData = [];
+        let expandedNodes = new Set();
+        let allExpanded = false;
+        let zoomHandler;
+        let currentTransform = d3.zoomIdentity.translate(80, 100).scale(0.8);
+        
+        let spacingH = 320;
+        let spacingV = 100;
+
+        const colors = {
+            asil: { "QM": "#C0E6F5", "ASIL A": "#4D93D9", "ASIL B": "#9966FF", "ASIL C": "#D86DCD", "ASIL D": "#FF3399" },
+            type: { "HARA": "#FFC000", "SG": "#E97132", "FR": "#92D050", "TR": "#4EA72E" }
+        };
+
+        window.onload = () => {
+            const svg = d3.select("#main-svg");
+            zoomHandler = d3.zoom().on("zoom", (e) => {
+                currentTransform = e.transform;
+                d3.select("#main-svg g").attr("transform", e.transform);
+            });
+            svg.call(zoomHandler);
+
+            document.getElementById('btn-sample').onclick = () => loadData(sampleData);
+            document.getElementById('btn-toggle-all').onclick = toggleAll;
+            
+            document.getElementById('spacing-h').oninput = (e) => { spacingH = +e.target.value; renderTraceMap(false); };
+            document.getElementById('spacing-v').oninput = (e) => { spacingV = +e.target.value; renderTraceMap(false); };
+
+            loadData(sampleData);
+        };
+
+        function toggleAll() {
+            allExpanded = !allExpanded;
+            const iconMax = document.getElementById('icon-max');
+            const iconMin = document.getElementById('icon-min');
+            
+            if (allExpanded) {
+                fullData.slice(1).forEach(r => expandedNodes.add(String(r[0])));
+                iconMax.classList.add('hidden');
+                iconMin.classList.remove('hidden');
+            } else {
+                expandedNodes.clear();
+                iconMax.classList.remove('hidden');
+                iconMin.classList.add('hidden');
+            }
+            renderTraceMap(false);
+        }
+
+        function getAsilColor(val) {
+            val = String(val).toUpperCase();
+            for (let k in colors.asil) if (val.includes(k)) return colors.asil[k];
+            return "#cbd5e1";
+        }
+
+        function getTypeColor(val) {
+            val = String(val).toUpperCase();
+            return colors.type[val] || "#64748b";
+        }
+
+        function loadData(rows) {
+            fullData = rows;
+            renderTraceMap(true);
+        }
+
+        function renderTraceMap(resetZoom = false) {
+            const svg = d3.select("#main-svg");
+            let g = svg.select("g");
+            if (g.empty()) g = svg.append("g");
+            
+            g.selectAll("*").remove();
+
+            const header = fullData[0].map(h => h.toLowerCase());
+            const idxId = header.indexOf("id");
+            const idxDesc = header.indexOf("description");
+            const idxAsil = header.indexOf("asil");
+            const idxSrc = header.indexOf("source id");
+            const idxType = header.indexOf("type");
+
+            const data = fullData.slice(1).map(r => ({
+                id: String(r[idxId]),
+                desc: String(r[idxDesc]),
+                asil: String(r[idxAsil]),
+                parentId: String(r[idxSrc] || "").trim(),
+                type: String(r[idxType])
+            })).filter(d => d.id);
+
+            const idMap = new Map(data.map(d => [d.id, d]));
+            data.forEach(d => { if (d.parentId && !idMap.has(d.parentId)) d.parentId = ""; });
+
+            const vRootId = "__ROOT__";
+            const forestData = [{ id: vRootId, parentId: null }, ...data.map(d => ({...d, parentId: d.parentId || vRootId}))];
+            const root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(forestData);
+
+            const treeLayout = d3.tree().nodeSize([spacingV, spacingH]);
+            treeLayout(root);
+
+            const nodeWidth = 120;
+
+            g.selectAll(".link")
+                .data(root.links().filter(d => d.source.id !== vRootId))
+                .enter().append("path")
+                .attr("class", "link")
+                .attr("d", d => {
+                    const startX = d.source.y + nodeWidth;
+                    const startY = d.source.x;
+                    const endX = d.target.y;
+                    const endY = d.target.x;
+                    return `M${startX},${startY} C${(startX + endX)/2},${startY} ${(startX + endX)/2},${endY} ${endX},${endY}`;
+                });
+
+            const nodes = g.selectAll(".node")
+                .data(root.descendants().filter(d => d.id !== vRootId))
+                .enter().append("g")
+                .attr("class", "node-container")
+                .attr("transform", d => `translate(${d.y},${d.x})`)
+                .on("click", (e, d) => {
+                    if (expandedNodes.has(d.id)) expandedNodes.delete(d.id);
+                    else expandedNodes.add(d.id);
+                    renderTraceMap(false);
+                });
+
+            nodes.each(function(d) {
+                const el = d3.select(this);
+                const isExpanded = expandedNodes.has(d.id);
+                
+                const foreignObj = el.append("foreignObject")
+                    .attr("x", 0)
+                    .attr("y", -12)
+                    .attr("width", 250)
+                    .attr("height", isExpanded ? 200 : 30)
+                    .style("overflow", "visible");
+
+                const div = foreignObj.append("xhtml:div").attr("class", "flex flex-col items-start");
+                const headerDiv = div.append("xhtml:div").attr("class", "flex shadow-md rounded-md overflow-hidden");
+                
+                headerDiv.append("xhtml:div")
+                    .attr("class", "req-header-id")
+                    .style("background-color", getTypeColor(d.data.type))
+                    .text(d.data.id);
+                
+                headerDiv.append("xhtml:div")
+                    .attr("class", "req-header-asil")
+                    .style("background-color", getAsilColor(d.data.asil))
+                    .text(d.data.asil || "QM");
+
+                if (isExpanded) {
+                    div.append("xhtml:div").attr("class", "desc-box").text(d.data.desc || "---");
+                }
+            });
+
+            if (resetZoom) {
+                currentTransform = d3.zoomIdentity.translate(80, 100).scale(0.8);
+                svg.call(zoomHandler.transform, currentTransform);
+            } else {
+                g.attr("transform", currentTransform);
+                svg.call(zoomHandler.transform, currentTransform);
+            }
+        }
+    </script>
+</body>
+</html>
