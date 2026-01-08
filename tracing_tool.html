@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Requirements Tracing Tool</title>
+    <title>Requirements Tracing Tool v1.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -70,7 +70,7 @@
     <nav class="bg-gray-900 text-white flex flex-col px-6 shadow-xl z-50 py-3">
         <div class="flex items-center justify-between h-8 mb-2">
             <div class="flex items-center space-x-4">
-                <span class="font-black text-lg tracking-tighter text-green-400">REQ TRACING</span>
+                <span class="font-black text-lg tracking-tighter text-green-400">REQ TRACING v1.1</span>
                 <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
             </div>
             <div class="flex space-x-2">
@@ -149,6 +149,7 @@
         };
 
         window.onload = () => {
+            console.log("REQ TRACING: Window loaded.");
             const svg = d3.select("#main-svg");
             zoomHandler = d3.zoom().on("zoom", (e) => {
                 currentTransform = e.transform;
@@ -170,27 +171,36 @@
         // --- Excel Integration Logic ---
 
         async function handleExcelSync() {
+            console.log("REQ TRACING: Sync button clicked.");
             if (!officeLoaded) {
+                console.log("REQ TRACING: Office.js not loaded. Injecting script...");
                 updateStatus("Loading API...", "bg-blue-900 text-blue-200");
                 const script = document.createElement('script');
                 script.src = "https://appsforoffice.microsoft.com/lib/1/hosted/office.js";
                 script.onload = () => {
+                    console.log("REQ TRACING: Office.js script loaded to DOM.");
                     Office.onReady(async (info) => {
+                        console.log("REQ TRACING: Office onReady initialized.", info);
                         officeLoaded = true;
                         updateStatus("API Ready", "bg-green-900 text-green-300");
                         await populateTableDropdown();
                         performExcelRead();
                     });
                 };
-                script.onerror = () => updateStatus("API Error", "bg-red-900 text-red-200");
+                script.onerror = () => {
+                    console.error("REQ TRACING: Failed to load Office.js from Microsoft CDN.");
+                    updateStatus("API Error", "bg-red-900 text-red-200");
+                };
                 document.head.appendChild(script);
             } else {
+                console.log("REQ TRACING: Office already loaded. Re-discovering tables.");
                 if (!tablesLoaded) await populateTableDropdown();
                 performExcelRead();
             }
         }
 
         async function populateTableDropdown() {
+            console.log("REQ TRACING: Discovery started...");
             const dropdown = document.getElementById('table-select');
             dropdown.innerHTML = '<option value="">-- Loading --</option>';
             try {
@@ -198,8 +208,11 @@
                     const worksheet = context.workbook.worksheets.getActiveWorksheet();
                     const tables = worksheet.tables.load("name");
                     await context.sync();
+                    
+                    console.log("REQ TRACING: Tables found in sheet:", tables.items.map(t => t.name));
                     dropdown.innerHTML = '';
                     if (tables.items.length === 0) {
+                        console.warn("REQ TRACING: No Excel tables found in the active worksheet.");
                         dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
                         tablesLoaded = true;
                         return;
@@ -210,12 +223,13 @@
                         option.textContent = table.name;
                         dropdown.appendChild(option);
                     });
-                    // Select first table by default
+                    
                     dropdown.selectedIndex = 0;
                     tablesLoaded = true;
                     updateStatus("Tables Loaded", "bg-green-900 text-green-300");
                 });
             } catch (error) {
+                console.error("REQ TRACING: populateTableDropdown Error:", error);
                 dropdown.innerHTML = '<option value="">-- Error --</option>';
                 updateStatus("Discovery Error", "bg-red-900 text-red-200");
             }
@@ -223,6 +237,7 @@
 
         async function performExcelRead() {
             const selectedTableName = document.getElementById('table-select').value;
+            console.log("REQ TRACING: Attempting to read table:", selectedTableName);
             if (!selectedTableName) return;
 
             updateStatus("Reading...", "bg-yellow-900 text-yellow-200");
@@ -233,11 +248,15 @@
                     const dataRange = table.getDataBodyRange().load("values");
                     await context.sync();
                     
+                    console.log("REQ TRACING: Successfully read headers:", headerRange.values[0]);
+                    console.log(`REQ TRACING: Successfully read ${dataRange.values.length} data rows.`);
+                    
                     const rows = [headerRange.values[0], ...dataRange.values];
                     loadData(rows);
                     updateStatus("Synced", "bg-green-900 text-green-300");
                 });
             } catch (error) {
+                console.error("REQ TRACING: performExcelRead Error:", error);
                 updateStatus("Read Error", "bg-red-900 text-red-200");
             }
         }
@@ -297,7 +316,10 @@
             const idxSrc = header.indexOf("source id");
             const idxType = header.indexOf("type");
 
-            if (idxId === -1) return;
+            if (idxId === -1) {
+                console.error("REQ TRACING: Required column 'ID' not found in data.");
+                return;
+            }
 
             const data = fullData.slice(1).map(r => ({
                 id: String(r[idxId] || ""),
@@ -312,7 +334,14 @@
 
             const vRootId = "__ROOT__";
             const forestData = [{ id: vRootId, parentId: null }, ...data.map(d => ({...d, parentId: d.parentId || vRootId}))];
-            const root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(forestData);
+            
+            let root;
+            try {
+                root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(forestData);
+            } catch (err) {
+                console.error("REQ TRACING: Stratification failed. Check for circular refs or missing IDs.", err);
+                return;
+            }
 
             const treeLayout = d3.tree().nodeSize([spacingV, spacingH]);
             treeLayout(root);
