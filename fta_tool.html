@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FTA Professional v1.9 - Layout Fixes</title>
+    <title>FTA Tool v1.9 - Layout Fixes</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -32,9 +32,9 @@
         <div class="flex items-center justify-between h-8 mb-2">
             <div class="flex items-center space-x-4">
                 <!-- Title: Smaller (text-lg) -->
-                <span class="font-black text-lg tracking-tighter text-blue-400">FTA PRO v1.9</span>
+                <span class="font-black text-lg tracking-tighter text-blue-400">FTA Tool v1.9</span>
                 <!-- Status Pill: Now using text-[6px] and px-0.5 for further size reduction -->
-                <div id="status-pill" class="text-xs px-0.5 py-0 rounded font-bold bg-gray-800 text-gray-500">Standalone</div>
+                <div id="status-pill" class="text-xs px-0.5 py-0 rounded bg-gray-800 text-gray-500">Standalone</div>
             </div>
             
             <!-- Sample Button (Moved to Row 1) -->
@@ -349,7 +349,7 @@
             const pill = document.getElementById('status-pill');
             pill.innerText = text;
             // Updated to text-[6px] and px-0.5
-            pill.className = `text-[6px] px-0.5 py-0 rounded font-bold uppercase tracking-widest ${classes}`;
+            pill.className = `text-xs px-0.5 py-0 rounded tracking-widest ${classes}`;
         }
 
         function getAsilColor(asil) {
