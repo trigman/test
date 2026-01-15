@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Requirements Tracing Tool v1.3</title>
+    <title>Requirements Tracing Tool v1.3.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -29,32 +29,30 @@
             left: 20px;
             z-index: 100;
             display: grid;
-            grid-template-areas: "v-slider ." "toggle h-slider";
+            /* Removed 'toggle' area, sliders now frame an empty corner */
+            grid-template-areas: 
+                "v-slider ."
+                ". h-slider";
             align-items: center;
             justify-items: center;
-            gap: 10px;
+            gap: 5px;
         }
 
         .slider-v { grid-area: v-slider; writing-mode: bt-lr; appearance: slider-vertical; width: 8px; height: 120px; }
         .slider-h { grid-area: h-slider; width: 120px; height: 8px; }
 
-        #btn-toggle-all {
-            grid-area: toggle;
-            width: 32px; height: 32px;
-            display: flex; align-items: center; justify-content: center;
-            background: white; border: 1px solid #cbd5e1; border-radius: 6px;
-            color: #475569; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+        input[type=range] { cursor: pointer; opacity: 0.6; transition: opacity 0.2s; }
+        input[type=range]:hover { opacity: 1; }
     </style>
 </head>
 <body class="flex flex-col">
     <nav class="bg-gray-900 text-white flex flex-col px-6 shadow-xl z-50 py-3">
         <div class="flex items-center justify-between h-8 mb-2">
             <div class="flex items-center space-x-4">
-                <span class="font-black text-lg tracking-tighter text-blue-400">REQ TRACING v1.3</span>
+                <span class="font-black text-lg tracking-tighter text-blue-400">REQ TRACING v1.3.2</span>
                 <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
                 
-                <!-- Description Content Filters -->
+                <!-- Description Content Filters + Expand/Collapse Button -->
                 <div class="flex items-center space-x-3 bg-gray-800 px-3 py-1 rounded-md border border-gray-700 ml-4">
                     <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Show:</span>
                     <label class="flex items-center space-x-1 cursor-pointer">
@@ -65,6 +63,15 @@
                         <input type="checkbox" id="show-fm" class="rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-0 w-3 h-3">
                         <span class="text-[10px] font-medium">Failure Mode</span>
                     </label>
+                    
+                    <!-- Vertical Divider -->
+                    <div class="h-4 w-px bg-gray-600 mx-2"></div>
+
+                    <!-- Moved Toggle Button Here -->
+                    <button id="btn-toggle-all" class="text-gray-300 hover:text-white transition-colors" title="Toggle All Descriptions">
+                        <svg id="icon-max" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                        <svg id="icon-min" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L4 4m0 0v4m0-4h4m12 5l-5-5m5 5h-4m0-4v4m-5 11l5-5m-5 5v-4m0 4h4m-11 0l5-5m-5 5h-4m0-4v4"></path></svg>
+                    </button>
                 </div>
             </div>
             <div class="flex space-x-2">
@@ -85,10 +92,7 @@
         
         <div id="controls-corner">
             <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="40" title="Vertical Spacing">
-            <button id="btn-toggle-all" title="Toggle All Descriptions">
-                <svg id="icon-max" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                <svg id="icon-min" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L4 4m0 0v4m0-4h4m12 5l-5-5m5 5h-4m0-4v4m-5 11l5-5m-5 5v-4m0 4h4m-11 0l5-5m-5 5h-4m0-4v4"></path></svg>
-            </button>
+            <!-- Button removed from here -->
             <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="280" title="Horizontal Spacing">
         </div>
     </main>
@@ -123,8 +127,20 @@
 
         const colors = {
             asil: { "QM": "#C0E6F5", "ASIL A": "#4D93D9", "ASIL B": "#9966FF", "ASIL C": "#D86DCD", "ASIL D": "#FF3399" },
-            type: { "HARA": "#FFC000", "SG": "#E97132", "FR": "#92D050", "FSR": "#92D050", "TR": "#4EA72E", "TSR": "#4EA72E", "HR": "#64748b" }
+            type: { "HARA": "#FFC000", "SG": "#E97132", "FR": "#92D050", "FSR": "#92D050", "TR": "#4EA72E", "TSR": "#4EA72E", "HR": "#00B85C", "SR": "#01A6B7", "DR": "#03D1DB" }
         };
+
+        // Helper to get color even with parenthetical notation like ASIL C (D)
+        function getAsilColor(asilStr) {
+            if (!asilStr) return "#94a3b8";
+            const upper = asilStr.toUpperCase();
+            if (upper.includes("ASIL D")) return colors.asil["ASIL D"];
+            if (upper.includes("ASIL C")) return colors.asil["ASIL C"];
+            if (upper.includes("ASIL B")) return colors.asil["ASIL B"];
+            if (upper.includes("ASIL A")) return colors.asil["ASIL A"];
+            if (upper.includes("QM")) return colors.asil["QM"];
+            return "#94a3b8";
+        }
 
         window.onload = () => {
             const svg = d3.select("#main-svg");
@@ -213,7 +229,14 @@
         function toggleAll() {
             allExpanded = !allExpanded;
             if (allExpanded) {
-                fullData.slice(1).forEach(r => expandedNodes.add(String(r[0] + "_" + r[1])));
+                // Expand based on the currently processed map data
+                const header = fullData[0].map(h => String(h).toLowerCase());
+                const idxType = header.indexOf("type");
+                const idxId = header.indexOf("id");
+                fullData.slice(1).forEach(r => {
+                    const key = String(r[idxType]).trim() + "_" + String(r[idxId]).trim();
+                    expandedNodes.add(key);
+                });
                 d3.select('#icon-max').classed('hidden', true);
                 d3.select('#icon-min').classed('hidden', false);
             } else {
@@ -240,6 +263,7 @@
             const idxId = header.indexOf("id");
             const idxReq = header.indexOf("requirement");
             const idxAsil = header.indexOf("asil");
+            const idxSrcType = header.indexOf("source type");
             const idxSrcId = header.indexOf("source id");
             const idxLogic = header.indexOf("fta and/or");
             const idxFM = header.indexOf("failure mode");
@@ -250,28 +274,33 @@
             const showFM = document.getElementById('show-fm').checked;
 
             const data = fullData.slice(1).map(r => {
-                const type = String(r[idxType] || "");
-                const id = String(r[idxId] || "");
+                const type = String(r[idxType] || "").trim();
+                const id = String(r[idxId] || "").trim();
+                const srcType = String(r[idxSrcType] || "").trim();
+                const srcId = String(r[idxSrcId] || "").trim();
+                
                 return {
-                    uniqueId: type + "_" + id, // Unique key for stratification
+                    uniqueId: (type + "_" + id),
                     type: type,
                     id: id,
                     req: String(r[idxReq] || ""),
                     asil: String(r[idxAsil] || ""),
-                    parentId: (String(r[header.indexOf("source type")] || "") + "_" + String(r[idxSrcId] || "")).trim(),
+                    parentId: (srcType + "_" + srcId),
                     logic: String(r[idxLogic] || ""),
                     fm: String(r[idxFM] || "")
                 };
             }).filter(d => d.id);
 
             const idMap = new Map(data.map(d => [d.uniqueId, d]));
-            data.forEach(d => { if (d.parentId === "_" || !idMap.has(d.parentId)) d.parentId = "__ROOT__"; });
+            data.forEach(d => { 
+                if (d.parentId === "_" || !idMap.has(d.parentId)) d.parentId = "__ROOT__"; 
+            });
 
             const forestData = [{ uniqueId: "__ROOT__", parentId: null }, ...data];
             let root;
             try {
                 root = d3.stratify().id(d => d.uniqueId).parentId(d => d.parentId)(forestData);
-            } catch (err) { console.error(err); return; }
+            } catch (err) { console.error("Stratify error:", err); return; }
 
             const treeLayout = d3.tree().nodeSize([spacingV, spacingH]);
             treeLayout(root);
@@ -315,7 +344,7 @@
                     .text(`${d.data.type} ${d.data.id}`);
                 
                 headerDiv.append("xhtml:div").attr("class", "req-header-mid")
-                    .style("background-color", colors.asil[d.data.asil.toUpperCase()] || "#94a3b8")
+                    .style("background-color", getAsilColor(d.data.asil))
                     .text(d.data.asil || "QM");
                 
                 headerDiv.append("xhtml:div").attr("class", "req-header-right")
