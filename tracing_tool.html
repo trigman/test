@@ -3,17 +3,25 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Requirements Tracing Tool v1.2</title>
+    <title>Requirements Tracing Tool v1.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #f8fafc; }
         .link { fill: none; stroke: #94a3b8; stroke-width: 1.5px; opacity: 0.4; transition: d 0.2s ease; }
         .node-container { cursor: pointer; }
-        .req-header-id { font-size: 10px; font-weight: 800; color: white; padding: 2px 6px; border-radius: 4px 0 0 4px; display: flex; align-items: center; justify-content: center; min-width: 65px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); }
-        .req-header-asil { font-size: 10px; font-weight: 800; color: white; padding: 2px 6px; border-radius: 0 4px 4px 0; display: flex; align-items: center; justify-content: center; min-width: 55px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); }
+        
+        /* Three-part header system */
+        .req-header-left { font-size: 10px; font-weight: 800; color: white; padding: 2px 6px; border-radius: 4px 0 0 0; display: flex; align-items: center; justify-content: center; min-width: 80px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); }
+        .req-header-mid { font-size: 10px; font-weight: 800; color: white; padding: 2px 6px; display: flex; align-items: center; justify-content: center; min-width: 55px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); border-left: 1px solid rgba(255,255,255,0.2); }
+        .req-header-right { font-size: 10px; font-weight: 800; color: #475569; background: #e2e8f0; padding: 2px 6px; border-radius: 0 4px 0 0; display: flex; align-items: center; justify-content: center; min-width: 40px; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1); border-left: 1px solid #cbd5e1; }
+        
         .desc-box { font-size: 9px; line-height: 1.3; color: #334155; background: white; border: 1px solid #e2e8f0; border-top: none; padding: 8px; border-radius: 0 0 4px 4px; width: 220px; white-space: normal; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        #canvas-container { background: #f1f5f9; height: calc(100vh - 92px); width: 100%; position: relative; }
+        .desc-section { margin-bottom: 6px; }
+        .desc-section:last-child { margin-bottom: 0; }
+        .desc-label { font-weight: 800; text-transform: uppercase; font-size: 7px; color: #94a3b8; display: block; margin-bottom: 1px; }
+
+        #canvas-container { background: #f1f5f9; height: calc(100vh - 110px); width: 100%; position: relative; }
         
         #controls-corner {
             position: absolute;
@@ -21,64 +29,50 @@
             left: 20px;
             z-index: 100;
             display: grid;
-            grid-template-areas: 
-                "v-slider ."
-                "toggle h-slider";
+            grid-template-areas: "v-slider ." "toggle h-slider";
             align-items: center;
             justify-items: center;
             gap: 10px;
         }
 
-        .slider-v { 
-            grid-area: v-slider;
-            writing-mode: bt-lr;
-            appearance: slider-vertical;
-            width: 8px;
-            height: 120px;
-            padding: 0 5px;
-        }
-
-        .slider-h { 
-            grid-area: h-slider;
-            width: 120px;
-            height: 8px;
-        }
+        .slider-v { grid-area: v-slider; writing-mode: bt-lr; appearance: slider-vertical; width: 8px; height: 120px; }
+        .slider-h { grid-area: h-slider; width: 120px; height: 8px; }
 
         #btn-toggle-all {
             grid-area: toggle;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            color: #475569;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: all 0.2s;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            background: white; border: 1px solid #cbd5e1; border-radius: 6px;
+            color: #475569; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
-        #btn-toggle-all:hover { background: #f1f5f9; color: #1e293b; }
-
-        input[type=range] { cursor: pointer; opacity: 0.6; transition: opacity 0.2s; }
-        input[type=range]:hover { opacity: 1; }
     </style>
 </head>
 <body class="flex flex-col">
     <nav class="bg-gray-900 text-white flex flex-col px-6 shadow-xl z-50 py-3">
         <div class="flex items-center justify-between h-8 mb-2">
             <div class="flex items-center space-x-4">
-                <span class="font-black text-lg tracking-tighter text-blue-400">REQ TRACING v1.2</span>
+                <span class="font-black text-lg tracking-tighter text-blue-400">REQ TRACING v1.3</span>
                 <div id="status-pill" class="text-[10px] px-2 py-0.5 rounded font-bold bg-gray-800 text-gray-400 uppercase tracking-widest border border-gray-700 font-mono">Ready</div>
+                
+                <!-- Description Content Filters -->
+                <div class="flex items-center space-x-3 bg-gray-800 px-3 py-1 rounded-md border border-gray-700 ml-4">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Show:</span>
+                    <label class="flex items-center space-x-1 cursor-pointer">
+                        <input type="checkbox" id="show-req" checked class="rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-0 w-3 h-3">
+                        <span class="text-[10px] font-medium">Requirement</span>
+                    </label>
+                    <label class="flex items-center space-x-1 cursor-pointer">
+                        <input type="checkbox" id="show-fm" class="rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-0 w-3 h-3">
+                        <span class="text-[10px] font-medium">Failure Mode</span>
+                    </label>
+                </div>
             </div>
             <div class="flex space-x-2">
-                <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-bold py-1 px-3 rounded border border-gray-500 transition">Sample</button>
+                <button id="btn-sample" class="bg-gray-700 hover:bg-gray-600 text-white text-[10px] font-bold py-1 px-3 rounded border border-gray-500 transition">Reset Sample</button>
             </div>
         </div>
         <div class="flex items-center space-x-4 h-8">
-            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">Sync Visible Data</button>
+            <button id="btn-sync" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition shadow-lg">Sync Workbook</button>
             <label for="table-select" class="text-xs font-medium text-gray-400">Table:</label>
             <select id="table-select" class="bg-gray-800 text-white text-sm py-1 px-3 rounded border border-gray-700 w-64 focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">-- No Tables --</option>
@@ -90,22 +84,29 @@
         <svg id="main-svg" class="w-full h-full"></svg>
         
         <div id="controls-corner">
-            <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="50" title="Vertical Spacing">
+            <input type="range" id="spacing-v" class="slider-v" min="0" max="250" value="40" title="Vertical Spacing">
             <button id="btn-toggle-all" title="Toggle All Descriptions">
                 <svg id="icon-max" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                 <svg id="icon-min" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9L4 4m0 0v4m0-4h4m12 5l-5-5m5 5h-4m0-4v4m-5 11l5-5m-5 5v-4m0 4h4m-11 0l5-5m-5 5h-4m0-4v4"></path></svg>
             </button>
-            <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="200" title="Horizontal Spacing">
+            <input type="range" id="spacing-h" class="slider-h" min="20" max="600" value="280" title="Horizontal Spacing">
         </div>
     </main>
 
     <script>
         const sampleData = [
-            ["ID", "Description", "ASIL", "Source ID", "Type"],
-            ["SG1", "Prevent unintended acceleration above driver request.", "ASIL D", "", "SG"],
-            ["SG2", "Prevent torque overshoot beyond safe limits", "ASIL B", "", "SG"],
-            ["HRA1.1", "Motor provides torque not requested by driver", "ASIL D", "SG1", "HARA"],
-            ["FSR1.1", "The e-stop returns vehicle to safe state of zero torque", "ASIL C (D)", "SG1", "FR"]
+            ["Type", "ID", "Requirement", "Source Type", "Source ID", "Source Description", "Source ASIL", "ASIL decomposition", "Decomposition Justification", "DFA", "ASIL", "FTA and/or", "DFMEA", "Failure Mode"],
+            ["SG", "1", "Prevent unintended acceleration above driver request.", "", "", "", "", "", "", "", "ASIL D", "AND", "DFMEA1", "Violation of SG1: Prevent unintended acceleration above driver request."],
+            ["SG", "2", "Prevent torque overshoot beyond safe limits", "", "", "", "", "", "", "", "ASIL A", "AND", "DFMEA2", "Violation of SG2: Prevent torque overshoot beyond safe limits"],
+            ["SG", "3", "Ensure torque delivery when requested", "", "", "", "", "", "", "", "ASIL B", "OR", "DFMEA3", "Violation of SG3: Ensure torque delivery when requested"],
+            ["SG", "4", "Maintain acceptable torque response time", "", "", "", "", "", "", "", "ASIL B", "OR", "DFMEA4", "Violation of SG4: Maintain acceptable torque response time"],
+            ["SG", "5", "Prevent incorrect torque direction", "", "", "", "", "", "", "", "ASIL A", "OR", "DFMEA5", "Violation of SG5: Prevent incorrect torque direction"],
+            ["SG", "10", "Prevent exposure to HV during maintenance", "", "", "", "", "", "", "", "QM", "AND", "DFMEA10", "Violation of SG10: Prevent exposure to HV during maintenance"],
+            ["FSR", "1.1", "The e-stop (safety mechanism independent from VCU) shall return the vehicle to the safe state of zero torque", "SG", "1", "Prevent unintended acceleration above driver request.", "ASIL D", "SG1 ASIL D -> FSR1.1 ASIL A (D) + FSR1.2 ASIL C (D)", "Safety mechanism with lower complexity givel higer ASIL", "DFA1.1", "ASIL C (D)", "OR", "DFMEA1.1", "E-stop path fails to interrupt power"],
+            ["FSR", "1.1.1", "E-stop button must maintain ability to activate the safety mechanism", "FSR", "1.1", "The e-stop (safety mechanism independent from VCU) shall return the vehicle to the safe state of zero torque", "ASIL C (D)", "", "", "", "ASIL C (D)", "AND", "DFMEA1.1.1", "Loss of E-stop button activation capability"],
+            ["TSR", "1.1.1.1", "E-stop button must maintain functionality through vehicle lifetime", "FSR", "1.1.1", "E-stop button must maintain ability to activate the safety mechanism", "ASIL C (D)", "", "", "", "ASIL C (D)", "OR", "DFMEA1.1.1.1", "Physical fault in button hardware"],
+            ["HR", "1.1.1.1.1", "e-stop hardware tolerant to EMI and voltage spikes", "TSR", "1.1.1.1", "E-stop button must maintain functionality through vehicle lifetime", "ASIL C (D)", "", "", "", "ASIL C (D)", "", "DFMEA1.1.1.1.1", ""],
+            ["HR", "1.1.1.1.2", "e-stop hardware proven in use below ASIL C RHF target 1E-6 h-1", "TSR", "1.1.1.1", "E-stop button must maintain functionality through vehicle lifetime", "ASIL C (D)", "", "", "", "ASIL C (D)", "", "DFMEA1.1.1.1.2", ""]
         ];
 
         let fullData = [];
@@ -114,19 +115,18 @@
         let zoomHandler;
         let currentTransform = d3.zoomIdentity.translate(80, 100).scale(0.8);
         
-        let spacingH = 250;
-        let spacingV = 30;
+        let spacingH = 280;
+        let spacingV = 40;
         
         let officeLoaded = false;
         let tablesLoaded = false;
 
         const colors = {
             asil: { "QM": "#C0E6F5", "ASIL A": "#4D93D9", "ASIL B": "#9966FF", "ASIL C": "#D86DCD", "ASIL D": "#FF3399" },
-            type: { "HARA": "#FFC000", "SG": "#E97132", "FR": "#92D050", "TR": "#4EA72E" }
+            type: { "HARA": "#FFC000", "SG": "#E97132", "FR": "#92D050", "FSR": "#92D050", "TR": "#4EA72E", "TSR": "#4EA72E", "HR": "#64748b" }
         };
 
         window.onload = () => {
-            console.log("REQ TRACING v1.2: Window loaded.");
             const svg = d3.select("#main-svg");
             zoomHandler = d3.zoom().on("zoom", (e) => {
                 currentTransform = e.transform;
@@ -139,6 +139,10 @@
             document.getElementById('btn-toggle-all').onclick = toggleAll;
             document.getElementById('table-select').onchange = performExcelRead;
             
+            ['show-req', 'show-fm'].forEach(id => {
+                document.getElementById(id).onchange = () => renderTraceMap(false);
+            });
+
             document.getElementById('spacing-h').oninput = (e) => { spacingH = +e.target.value; renderTraceMap(false); };
             document.getElementById('spacing-v').oninput = (e) => { spacingV = +e.target.value; renderTraceMap(false); };
 
@@ -146,7 +150,6 @@
         };
 
         async function handleExcelSync() {
-            console.log("REQ TRACING v1.2: Sync requested.");
             if (!officeLoaded) {
                 updateStatus("Loading API...", "bg-blue-900 text-blue-200");
                 const script = document.createElement('script');
@@ -168,102 +171,57 @@
 
         async function populateTableDropdown() {
             const dropdown = document.getElementById('table-select');
-            updateStatus("Scanning Workbook...", "bg-blue-800 text-white");
+            updateStatus("Scanning...", "bg-blue-800 text-white");
             try {
                 await Excel.run(async (context) => {
-                    // Search entire workbook
                     const tables = context.workbook.tables.load("name");
                     await context.sync();
-                    
                     dropdown.innerHTML = '';
                     if (tables.items.length === 0) {
-                        dropdown.innerHTML = '<option value="">-- No Tables Found --</option>';
-                        updateStatus("No Tables Found", "bg-yellow-600 text-white");
+                        dropdown.innerHTML = '<option value="">-- No Tables --</option>';
                         return;
                     }
-
                     tables.items.forEach(table => {
                         const option = document.createElement('option');
-                        option.value = table.name;
-                        option.textContent = table.name;
+                        option.value = table.name; option.textContent = table.name;
                         dropdown.appendChild(option);
                     });
-
-                    // Set default to "Elements" if it exists
-                    const defaultTable = tables.items.find(t => t.name.toUpperCase() === "ELEMENTS") || tables.items[0];
-                    if (defaultTable) {
-                        dropdown.value = defaultTable.name;
-                        updateStatus(`Tables Ready`, "bg-green-800 text-white");
-                    }
+                    const defaultTable = tables.items.find(t => t.name.toLowerCase() === "requirements") || tables.items[0];
+                    if (defaultTable) dropdown.value = defaultTable.name;
                     tablesLoaded = true;
+                    updateStatus("Tables Ready", "bg-green-800 text-white");
                 });
-            } catch (error) {
-                console.error("Discovery Error:", error);
-                updateStatus("Discovery Error", "bg-red-900 text-white");
-            }
+            } catch (error) { updateStatus("Error", "bg-red-900 text-white"); }
         }
 
         async function performExcelRead() {
             const selectedTableName = document.getElementById('table-select').value;
             if (!selectedTableName) return;
-
-            updateStatus("Reading Visible...", "bg-yellow-900 text-yellow-200");
+            updateStatus("Reading Table...", "bg-yellow-900 text-yellow-200");
             try {
                 await Excel.run(async (context) => {
-                    // Find table anywhere in the workbook
                     const table = context.workbook.tables.getItem(selectedTableName);
-                    
-                    // Fetch headers
                     const headerRange = table.getHeaderRowRange().load("values");
-                    
-                    // Fetch visible rows only
                     const visibleBody = table.getDataBodyRange().getVisibleView().load("values");
-                    
                     await context.sync();
-                    
-                    console.log("REQ TRACING v1.2: Filtered sync successful.");
-                    
-                    const rows = [headerRange.values[0], ...visibleBody.values];
-                    loadData(rows);
+                    loadData([headerRange.values[0], ...visibleBody.values]);
                     updateStatus(`Synced (${visibleBody.values.length} rows)`, "bg-green-900 text-green-300");
                 });
-            } catch (error) {
-                console.error("Filtered Read Error:", error);
-                updateStatus("Sync Error", "bg-red-900 text-red-200");
-            }
-        }
-
-        function updateStatus(text, classes) {
-            const pill = document.getElementById('status-pill');
-            pill.innerText = text;
-            pill.className = `text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-gray-700 font-mono ${classes}`;
+            } catch (error) { updateStatus("Sync Error", "bg-red-900 text-red-200"); }
         }
 
         function toggleAll() {
             allExpanded = !allExpanded;
-            const iconMax = document.getElementById('icon-max');
-            const iconMin = document.getElementById('icon-min');
             if (allExpanded) {
-                fullData.slice(1).forEach(r => expandedNodes.add(String(r[0])));
-                iconMax.classList.add('hidden');
-                iconMin.classList.remove('hidden');
+                fullData.slice(1).forEach(r => expandedNodes.add(String(r[0] + "_" + r[1])));
+                d3.select('#icon-max').classed('hidden', true);
+                d3.select('#icon-min').classed('hidden', false);
             } else {
                 expandedNodes.clear();
-                iconMax.classList.remove('hidden');
-                iconMin.classList.add('hidden');
+                d3.select('#icon-max').classed('hidden', false);
+                d3.select('#icon-min').classed('hidden', true);
             }
             renderTraceMap(false);
-        }
-
-        function getAsilColor(val) {
-            val = String(val).toUpperCase();
-            for (let k in colors.asil) if (val.includes(k)) return colors.asil[k];
-            return "#cbd5e1";
-        }
-
-        function getTypeColor(val) {
-            val = String(val).toUpperCase();
-            return colors.type[val] || "#64748b";
         }
 
         function loadData(rows) {
@@ -278,47 +236,52 @@
             g.selectAll("*").remove();
 
             const header = fullData[0].map(h => String(h).toLowerCase());
-            const idxId = header.indexOf("id");
-            const idxDesc = header.indexOf("description");
-            const idxAsil = header.indexOf("asil");
-            const idxSrc = header.indexOf("source id");
             const idxType = header.indexOf("type");
+            const idxId = header.indexOf("id");
+            const idxReq = header.indexOf("requirement");
+            const idxAsil = header.indexOf("asil");
+            const idxSrcId = header.indexOf("source id");
+            const idxLogic = header.indexOf("fta and/or");
+            const idxFM = header.indexOf("failure mode");
 
-            if (idxId === -1) return;
+            if (idxId === -1 || idxType === -1) return;
 
-            const data = fullData.slice(1).map(r => ({
-                id: String(r[idxId] || ""),
-                desc: String(r[idxDesc] || ""),
-                asil: String(r[idxAsil] || ""),
-                parentId: String(r[idxSrc] || "").trim(),
-                type: String(r[idxType] || "")
-            })).filter(d => d.id);
+            const showReq = document.getElementById('show-req').checked;
+            const showFM = document.getElementById('show-fm').checked;
 
-            const idMap = new Map(data.map(d => [d.id, d]));
-            data.forEach(d => { if (d.parentId && !idMap.has(d.parentId)) d.parentId = ""; });
+            const data = fullData.slice(1).map(r => {
+                const type = String(r[idxType] || "");
+                const id = String(r[idxId] || "");
+                return {
+                    uniqueId: type + "_" + id, // Unique key for stratification
+                    type: type,
+                    id: id,
+                    req: String(r[idxReq] || ""),
+                    asil: String(r[idxAsil] || ""),
+                    parentId: (String(r[header.indexOf("source type")] || "") + "_" + String(r[idxSrcId] || "")).trim(),
+                    logic: String(r[idxLogic] || ""),
+                    fm: String(r[idxFM] || "")
+                };
+            }).filter(d => d.id);
 
-            const vRootId = "__ROOT__";
-            const forestData = [{ id: vRootId, parentId: null }, ...data.map(d => ({...d, parentId: d.parentId || vRootId}))];
-            
+            const idMap = new Map(data.map(d => [d.uniqueId, d]));
+            data.forEach(d => { if (d.parentId === "_" || !idMap.has(d.parentId)) d.parentId = "__ROOT__"; });
+
+            const forestData = [{ uniqueId: "__ROOT__", parentId: null }, ...data];
             let root;
             try {
-                root = d3.stratify().id(d => d.id).parentId(d => d.parentId)(forestData);
-            } catch (err) {
-                console.error("Trace Logic Error:", err);
-                return;
-            }
+                root = d3.stratify().id(d => d.uniqueId).parentId(d => d.parentId)(forestData);
+            } catch (err) { console.error(err); return; }
 
             const treeLayout = d3.tree().nodeSize([spacingV, spacingH]);
             treeLayout(root);
 
-            const nodeWidth = 120;
-
             g.selectAll(".link")
-                .data(root.links().filter(d => d.source.id !== vRootId))
+                .data(root.links().filter(d => d.source.id !== "__ROOT__"))
                 .enter().append("path")
                 .attr("class", "link")
                 .attr("d", d => {
-                    const startX = d.source.y + nodeWidth;
+                    const startX = d.source.y + 175;
                     const startY = d.source.x;
                     const endX = d.target.y;
                     const endY = d.target.x;
@@ -326,7 +289,7 @@
                 });
 
             const nodes = g.selectAll(".node")
-                .data(root.descendants().filter(d => d.id !== vRootId))
+                .data(root.descendants().filter(d => d.id !== "__ROOT__"))
                 .enter().append("g")
                 .attr("class", "node-container")
                 .attr("transform", d => `translate(${d.y},${d.x})`)
@@ -339,14 +302,41 @@
             nodes.each(function(d) {
                 const el = d3.select(this);
                 const isExpanded = expandedNodes.has(d.id);
-                const foreignObj = el.append("foreignObject")
-                    .attr("x", 0).attr("y", -12).attr("width", 250).attr("height", isExpanded ? 200 : 30)
+                const fObj = el.append("foreignObject")
+                    .attr("x", 0).attr("y", -14).attr("width", 250).attr("height", isExpanded ? 300 : 32)
                     .style("overflow", "visible");
-                const div = foreignObj.append("xhtml:div").attr("class", "flex flex-col items-start");
-                const headerDiv = div.append("xhtml:div").attr("class", "flex shadow-md rounded-md overflow-hidden");
-                headerDiv.append("xhtml:div").attr("class", "req-header-id").style("background-color", getTypeColor(d.data.type)).text(d.data.id);
-                headerDiv.append("xhtml:div").attr("class", "req-header-asil").style("background-color", getAsilColor(d.data.asil)).text(d.data.asil || "QM");
-                if (isExpanded) div.append("xhtml:div").attr("class", "desc-box").text(d.data.desc || "---");
+                
+                const div = fObj.append("xhtml:div").attr("class", "flex flex-col items-start");
+                
+                // Three-Part Header
+                const headerDiv = div.append("xhtml:div").attr("class", "flex shadow-md rounded-t-md overflow-hidden");
+                headerDiv.append("xhtml:div").attr("class", "req-header-left")
+                    .style("background-color", colors.type[d.data.type.toUpperCase()] || "#64748b")
+                    .text(`${d.data.type} ${d.data.id}`);
+                
+                headerDiv.append("xhtml:div").attr("class", "req-header-mid")
+                    .style("background-color", colors.asil[d.data.asil.toUpperCase()] || "#94a3b8")
+                    .text(d.data.asil || "QM");
+                
+                headerDiv.append("xhtml:div").attr("class", "req-header-right")
+                    .text(d.data.logic || "—");
+
+                if (isExpanded) {
+                    const desc = div.append("xhtml:div").attr("class", "desc-box");
+                    if (showReq && d.data.req) {
+                        const sec = desc.append("xhtml:div").attr("class", "desc-section");
+                        sec.append("xhtml:span").attr("class", "desc-label").text("Requirement");
+                        sec.append("xhtml:div").text(d.data.req);
+                    }
+                    if (showFM && d.data.fm) {
+                        const sec = desc.append("xhtml:div").attr("class", "desc-section");
+                        sec.append("xhtml:span").attr("class", "desc-label").text("Failure Mode");
+                        sec.append("xhtml:div").text(d.data.fm);
+                    }
+                    if (!showReq && !showFM) desc.append("xhtml:div").attr("class", "text-gray-400 italic").text("No details selected");
+                } else {
+                    headerDiv.style("border-radius", "4px");
+                }
             });
 
             if (resetZoom) {
@@ -356,6 +346,12 @@
                 g.attr("transform", currentTransform);
                 svg.call(zoomHandler.transform, currentTransform);
             }
+        }
+
+        function updateStatus(text, classes) {
+            const pill = document.getElementById('status-pill');
+            pill.innerText = text;
+            pill.className = `text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-gray-700 font-mono ${classes}`;
         }
     </script>
 </body>
